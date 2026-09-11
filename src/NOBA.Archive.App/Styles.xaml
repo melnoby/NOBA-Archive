@@ -1,0 +1,452 @@
+<!--
+    Component styles. Hand-authored, but every value here is a token reference: no hex, no raw pixel
+    size, no font name outside the two monospace/icon stacks. That is ADR-0011's rule, and
+    Themes.generated.xaml is the only file allowed to contain a literal colour.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- The icon stack, named once so no component repeats a font name. -->
+    <FontFamily x:Key="NobaIconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <!--
+        Three button weights, because a toolbar where every button looks identical is a toolbar that
+        answers "what should I do here?" with silence. Extract all is the verb this screen exists for
+        and is the only accent-filled control on it.
+    -->
+    <Style x:Key="NobaButtonBaseStyle" TargetType="Button">
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeBodySize}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{StaticResource NobaRadiusMd}"
+                        Padding="{TemplateBinding Padding}">
+                        <ContentPresenter
+                            x:Name="Presenter"
+                            Content="{TemplateBinding Content}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Opacity" Value="0.88" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Opacity" Value="0.72" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <!--
+                                    Disabled is a real state with a real look, not a greyed accident.
+                                    Extract selected spends most of its life here.
+                                -->
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Opacity" Value="0.4" />
+                                        <Setter Target="Presenter.Opacity" Value="0.6" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="NobaPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource NobaButtonBaseStyle}">
+        <Setter Property="Background" Value="{ThemeResource NobaAccentDefault}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextOnAccent}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style x:Key="NobaSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource NobaButtonBaseStyle}">
+        <Setter Property="Background" Value="{ThemeResource NobaSurfaceRaised}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextPrimary}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource NobaBorderSubtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!-- No border, no fill: for icon affordances that must not compete with the toolbar. -->
+    <Style x:Key="NobaSubtleButtonStyle" TargetType="Button" BasedOn="{StaticResource NobaButtonBaseStyle}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,4" />
+    </Style>
+
+    <!--
+        Navigation. The active item is named by a 3px bar and a raised surface rather than by a colour
+        wash: at sidebar scale a tinted background is the first thing lost to a poor panel, and the bar
+        survives it.
+    -->
+    <Style x:Key="NobaNavItemStyle" TargetType="RadioButton">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeBodySize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border
+                        x:Name="Bd"
+                        Background="Transparent"
+                        CornerRadius="{StaticResource NobaRadiusMd}"
+                        MinHeight="36">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border
+                                x:Name="Indicator"
+                                Grid.Column="0"
+                                Width="3"
+                                Margin="0,7"
+                                CornerRadius="{StaticResource NobaRadiusSm}"
+                                Background="Transparent" />
+
+                            <!-- The glyph travels on Tag so the page sets text and icon separately. -->
+                            <TextBlock
+                                x:Name="Glyph"
+                                Grid.Column="1"
+                                Text="{TemplateBinding Tag}"
+                                FontFamily="{StaticResource NobaIconFont}"
+                                FontSize="16"
+                                Margin="9,0,10,0"
+                                VerticalAlignment="Center"
+                                Foreground="{TemplateBinding Foreground}" />
+
+                            <ContentPresenter
+                                x:Name="Label"
+                                Grid.Column="2"
+                                Content="{TemplateBinding Content}"
+                                Margin="0,0,12,0"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center" />
+                        </Grid>
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaSurfaceHover}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaSurfaceSelected}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="CheckStates">
+                                <VisualState x:Name="Unchecked" />
+                                <VisualState x:Name="Checked">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaSurfaceSelected}" />
+                                        <Setter Target="Indicator.Background" Value="{ThemeResource NobaAccentDefault}" />
+                                        <Setter Target="Glyph.Foreground" Value="{ThemeResource NobaTextPrimary}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource NobaTextPrimary}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        File rows. Selection and hover are surfaces rather than a tint on the text, so a refused row's
+        own state colour is never fighting the row's background for the same meaning.
+    -->
+    <Style x:Key="NobaFileRowStyle" TargetType="ListViewItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <!--
+                        ListViewItemPresenter rather than a hand-written template with visual states:
+                        it is what the platform's own list rows use, so hover, press, selection, focus
+                        and multi-select all behave exactly as they do everywhere else in Windows. The
+                        rows had none of these - which is most of why the table read as text that
+                        happened to be in columns.
+                    -->
+                    <ListViewItemPresenter
+                        ContentMargin="{TemplateBinding Padding}"
+                        CornerRadius="{StaticResource NobaRadiusSm}"
+                        SelectionCheckMarkVisualEnabled="False"
+                        HorizontalContentAlignment="Stretch"
+                        PointerOverBackground="{ThemeResource NobaSurfaceHover}"
+                        PressedBackground="{ThemeResource NobaSurfaceHover}"
+                        SelectedBackground="{ThemeResource NobaSurfaceSelected}"
+                        SelectedPointerOverBackground="{ThemeResource NobaSurfaceSelected}"
+                        SelectedPressedBackground="{ThemeResource NobaSurfaceSelected}"
+                        FocusBorderBrush="{ThemeResource NobaBorderFocus}"
+                        FocusSecondaryBorderBrush="{ThemeResource NobaBorderFocus}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Paths, sizes and hashes. Monospace, tabular figures, and always an LTR run. -->
+    <Style x:Key="NobaMonoTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeBodySize}" />
+        <Setter Property="FlowDirection" Value="LeftToRight" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+    </Style>
+
+    <!--
+        Row and header cell styles.
+
+        These exist because of a real defect: the page used to paint each cell by pulling a brush out of
+        Application.Resources in code. That lookup does not consult ResourceDictionary.ThemeDictionaries,
+        so every row got whichever theme's brush happened to be first - which in the light theme meant
+        file names painted in the dark theme's near-white on a near-white surface. The names were
+        invisible. A ThemeResource inside a Style is resolved per element against that element's actual
+        theme, so the same style is correct in both.
+    -->
+    <Style x:Key="NobaRowNameStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeBodySize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextPrimary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="NobaRowCellStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FlowDirection" Value="LeftToRight" />
+    </Style>
+
+    <Style x:Key="NobaRowGlyphStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource NobaIconFont}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="NobaRowFolderGlyphStyle" TargetType="TextBlock" BasedOn="{StaticResource NobaRowGlyphStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource NobaAccentDefault}" />
+    </Style>
+
+    <Style x:Key="NobaRowBlockedGlyphStyle" TargetType="TextBlock" BasedOn="{StaticResource NobaRowGlyphStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource NobaStateBlocked}" />
+    </Style>
+
+    <Style x:Key="NobaRowBlockedChipStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaStateBlocked}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="NobaRowEncryptedChipStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaStateEncrypted}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="NobaCrumbButtonStyle" TargetType="Button" BasedOn="{StaticResource NobaSubtleButtonStyle}">
+        <Setter Property="Padding" Value="6,2" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextPrimary}" />
+    </Style>
+
+    <!--
+        Caption buttons, drawn by us.
+
+        Windows draws minimise/maximise/close on the native frame, and that frame does not mirror
+        because a XAML element changed its FlowDirection - so in Arabic they stayed on the physical
+        right, which is the wrong end of an RTL window. The system title bar is switched off in code and
+        these take its place: ordinary XAML, so they mirror with everything else.
+
+        The sizes are Windows' own (46x32) rather than token values, because these have to match the
+        muscle memory and the pointer targets of every other window on the desktop.
+    -->
+    <Style x:Key="NobaCaptionButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontFamily" Value="{StaticResource NobaIconFont}" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextPrimary}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}">
+                        <ContentPresenter
+                            Content="{TemplateBinding Content}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaSurfaceHover}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaSurfaceSelected}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Close is the one destructive caption button, and Windows colours it accordingly. -->
+    <Style x:Key="NobaCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource NobaCaptionButtonStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}">
+                        <ContentPresenter
+                            x:Name="Glyph"
+                            Content="{TemplateBinding Content}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaStateBlocked}" />
+                                        <Setter Target="Glyph.Foreground" Value="{ThemeResource NobaTextOnAccent}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Bd.Background" Value="{ThemeResource NobaStateBlocked}" />
+                                        <Setter Target="Bd.Opacity" Value="0.8" />
+                                        <Setter Target="Glyph.Foreground" Value="{ThemeResource NobaTextOnAccent}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Test verdict.
+
+        Four tones, and each one is carried by a glyph and a headline as well as by colour - the same
+        rule the file rows follow. A verdict rendered as a coloured strip is a verdict a large number of
+        people cannot read, and "damaged" is not a thing to say in hue alone.
+    -->
+    <Style x:Key="NobaToneGoodStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource NobaStateAllowed}" />
+    </Style>
+
+    <Style x:Key="NobaToneWarningStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource NobaStateWarning}" />
+    </Style>
+
+    <Style x:Key="NobaToneBadStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource NobaStateBlocked}" />
+    </Style>
+
+    <Style x:Key="NobaToneInfoStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource NobaAccentDefault}" />
+    </Style>
+
+    <!-- The disc behind the tone glyph. Separate styles because a Border is not a TextBlock. -->
+    <Style x:Key="NobaToneGoodDiscStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource NobaAccentSubtle}" />
+    </Style>
+
+    <Style x:Key="NobaToneWarningDiscStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource NobaSurfaceSunken}" />
+    </Style>
+
+    <Style x:Key="NobaToneBadDiscStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource NobaSurfaceSunken}" />
+    </Style>
+
+    <Style x:Key="NobaToneInfoDiscStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource NobaAccentSubtle}" />
+    </Style>
+
+    <!-- A finding's path: a left-to-right run of its own, like every path in this product. -->
+    <Style x:Key="NobaFindingPathStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="FlowDirection" Value="LeftToRight" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextPrimary}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--
+        The engine's own sentence, shown verbatim and marked as machine text. It is not translated:
+        it comes from the backend, and paraphrasing a diagnosis we did not author would be inventing
+        one. The chip beside it carries the localised meaning.
+    -->
+    <Style x:Key="NobaFindingMessageStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="FlowDirection" Value="LeftToRight" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--
+        One fragment of a summary line. No FlowDirection setter: the fragment carries its own, and the
+        renderer sets it per element. A setter here would overwrite the one thing the fragment knows
+        that this style does not.
+    -->
+    <Style x:Key="NobaSummaryPartStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="NobaColumnHeaderStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource NobaTypeCaptionSize}" />
+        <Setter Property="Foreground" Value="{ThemeResource NobaTextSecondary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+</ResourceDictionary>

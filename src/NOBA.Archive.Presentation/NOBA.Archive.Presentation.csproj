@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      Platform-neutral on purpose, and this is the load-bearing decision of the whole UI layer.
+
+      WinUI 3 builds only on Windows, which would put every line of presentation logic beyond the
+      reach of the environment where most of this solution's validation actually happens. So the
+      logic lives here - capability gating, the browse tree, search, bidirectional text rules, the
+      design tokens themselves - in a project with no Windows dependency at all, and the XAML above
+      it is markup and wiring. What cannot be tested is then only what genuinely cannot be tested.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.Presentation</RootNamespace>
+    <Description>View models and design tokens. No XAML, no Windows dependency, no archive logic.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Application\NOBA.Archive.Application.csproj" />
+  </ItemGroup>
+</Project>

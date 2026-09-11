@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.Windows</RootNamespace>
+    <Description>Win32 primitives: handle verification, Mark of the Web, DLL search hardening.</Description>
+    <!--
+      Required by the [LibraryImport] source generator, which emits the marshalling code for us.
+      This is the only project in the solution that enables it, and it contains no hand-written
+      unsafe code - the architecture test asserts both.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.Security</RootNamespace>
+    <Description>Path policy, archive-bomb guards, and secret redaction. Depends on Core only.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+  </ItemGroup>
+</Project>

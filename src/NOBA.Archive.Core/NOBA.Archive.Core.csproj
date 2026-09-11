@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.Core</RootNamespace>
+    <Description>NOBA Archive domain model and contracts. Depends on the BCL only.</Description>
+  </PropertyGroup>
+</Project>

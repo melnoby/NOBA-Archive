@@ -1,0 +1,4 @@
+LIBRARY noba_e2_stub
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE

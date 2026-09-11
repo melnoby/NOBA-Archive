@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.Infrastructure</RootNamespace>
+    <Description>Filesystem, temp workspace, settings, and logging. The only project allowed to use System.IO.File/Directory.</Description>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Security\NOBA.Archive.Security.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,78 @@
+<ContentDialog
+    x:Class="NOBA.Archive.App.Dialogs.ExtractDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    DefaultButton="Primary"
+    Background="{ThemeResource NobaSurfaceRaised}"
+    BorderBrush="{ThemeResource NobaBorderSubtle}">
+
+    <StackPanel Spacing="14" MinWidth="460">
+
+        <TextBlock
+            x:Name="BodyText"
+            TextWrapping="Wrap"
+            Foreground="{ThemeResource NobaTextPrimary}" />
+
+        <!-- What is being extracted, and how much of it. Facts, not controls. -->
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Spacing="2">
+                <TextBlock x:Name="ArchiveLabel" Style="{StaticResource NobaColumnHeaderStyle}" />
+                <TextBlock x:Name="ArchiveText" Style="{StaticResource NobaMonoTextStyle}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock x:Name="ScopeLabel" Style="{StaticResource NobaColumnHeaderStyle}" />
+                <TextBlock x:Name="ScopeText" Foreground="{ThemeResource NobaTextPrimary}" />
+            </StackPanel>
+        </Grid>
+
+        <!--
+            The destination, shown before anything is written rather than discovered afterwards on the
+            operation strip. The path is a technical value: isolated by the planner, pinned LTR by the
+            mono style, so it stays readable in an Arabic dialog.
+        -->
+        <StackPanel Spacing="6">
+            <TextBlock x:Name="DestinationLabel" Style="{StaticResource NobaColumnHeaderStyle}" />
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    x:Name="DestinationText"
+                    Grid.Column="0"
+                    Style="{StaticResource NobaMonoTextStyle}"
+                    TextWrapping="Wrap"
+                    VerticalAlignment="Center"
+                    IsTextSelectionEnabled="True" />
+
+                <Button
+                    x:Name="ChooseButton"
+                    Grid.Column="1"
+                    Click="OnChooseDestination"
+                    Style="{StaticResource NobaSecondaryButtonStyle}" />
+            </Grid>
+        </StackPanel>
+
+        <!--
+            The conflict policy, chosen once for the whole operation. "Ask me each time" is selected by
+            the planner, so the safe answer is the one a person gets by not choosing.
+        -->
+        <StackPanel Spacing="6">
+            <TextBlock x:Name="ConflictLabel" Style="{StaticResource NobaColumnHeaderStyle}" />
+            <ComboBox x:Name="ConflictBox" HorizontalAlignment="Stretch" />
+            <TextBlock
+                x:Name="ConflictHint"
+                FontSize="{StaticResource NobaTypeCaptionSize}"
+                TextWrapping="Wrap"
+                Foreground="{ThemeResource NobaTextSecondary}" />
+        </StackPanel>
+    </StackPanel>
+</ContentDialog>

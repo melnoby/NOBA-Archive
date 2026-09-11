@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.TestKit</RootNamespace>
+    <Description>Deterministic fakes, fixture builders, and the offline test harness.</Description>
+    <IsPackable>false</IsPackable>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(NobaOfflineBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);NOBA_OFFLINE_TESTS</DefineConstants>
+  </PropertyGroup>
+  <!--
+    No xunit.v3 reference: that package requires OutputType=Exe (it makes a test project
+    self-executing), and this is a library of fakes. The [Fact]/Assert shims in Harness/ are compiled
+    only under NobaOfflineBuild, where xUnit is not present at all. If this project ever needs real
+    xUnit extensibility types, the correct package is xunit.v3.extensibility.core.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Security\NOBA.Archive.Security.csproj" />
+  </ItemGroup>
+</Project>

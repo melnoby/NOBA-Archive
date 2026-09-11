@@ -1,0 +1,503 @@
+<title>خريطة طريق NOBA Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root {
+  --ground: #0B1020;  --surface: #141B2E;  --raised: #1C2540;
+  --line: #262F4A;    --line-strong: #384267;
+  --ink: #E9EDF7;     --ink-muted: #97A1BA; --ink-faint: #6B7591;
+  --accent: #3D7BFF;  --accent-text: #7BA5FF; --accent-ground: #16213F;
+  --done: #4ECB8F;    --done-ground: #0F2620;
+  --open: #FF6B6F;    --open-ground: #2E1418;
+  --watch: #F0B03C;   --watch-ground: #2B2010;
+  --shadow: none;
+
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+  --r-control:4px; --r-card:8px; --r-panel:12px; --r-pill:999px;
+  --arabic: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground:#F6F8FC; --surface:#FFFFFF; --raised:#FFFFFF;
+    --line:#DFE4F0; --line-strong:#C3CBDE;
+    --ink:#0F1526; --ink-muted:#55607C; --ink-faint:#7A849E;
+    --accent:#1D4FD8; --accent-text:#1D4FD8; --accent-ground:#EAF0FF;
+    --done:#14714A; --done-ground:#E7F6EE;
+    --open:#C7362F; --open-ground:#FDECEA;
+    --watch:#8A5B00; --watch-ground:#FCF2DF;
+    --shadow: 0 1px 2px rgba(15,21,38,.06), 0 8px 24px rgba(15,21,38,.06);
+  }
+}
+:root[data-theme="light"] {
+  --ground:#F6F8FC; --surface:#FFFFFF; --raised:#FFFFFF;
+  --line:#DFE4F0; --line-strong:#C3CBDE;
+  --ink:#0F1526; --ink-muted:#55607C; --ink-faint:#7A849E;
+  --accent:#1D4FD8; --accent-text:#1D4FD8; --accent-ground:#EAF0FF;
+  --done:#14714A; --done-ground:#E7F6EE;
+  --open:#C7362F; --open-ground:#FDECEA;
+  --watch:#8A5B00; --watch-ground:#FCF2DF;
+  --shadow: 0 1px 2px rgba(15,21,38,.06), 0 8px 24px rgba(15,21,38,.06);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin:0; background: var(--ground); color: var(--ink);
+  font-family: var(--arabic); font-size:15px; line-height:1.9;
+  -webkit-font-smoothing: antialiased;
+}
+.page {
+  max-width: 940px; margin-inline:auto; padding-inline: var(--s5);
+  padding-block: var(--s7) var(--s8);
+  display:flex; flex-direction:column; gap: var(--s7);
+}
+
+header { display:flex; flex-direction:column; gap: var(--s3); }
+.brand { display:flex; align-items:center; gap: var(--s3); }
+.glyph {
+  width:38px; height:38px; flex:none; border-radius: var(--r-card);
+  background: linear-gradient(145deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #7BA5FF));
+  display:grid; place-items:center; color:#fff; font:700 20px/1 var(--mono);
+}
+h1 { margin:0; font-size: clamp(26px,4vw,34px); font-weight:600; letter-spacing:-.01em; text-wrap:balance; }
+.sub { margin:0; color: var(--ink-muted); max-width:60ch; }
+.stamp { font: 400 12px/1.6 var(--mono); color: var(--ink-faint); direction:ltr; text-align:start; }
+
+section { display:flex; flex-direction:column; gap: var(--s4); }
+.eyebrow { font:500 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color: var(--ink-faint); }
+h2 { margin:0; font-size:23px; font-weight:600; }
+h3 { margin:0; font-size:15px; font-weight:600; }
+p { margin:0; color: var(--ink-muted); max-width:68ch; }
+p strong, li strong { color: var(--ink); font-weight:600; }
+code {
+  font:400 .88em/1.5 var(--mono); background: var(--raised);
+  border:1px solid var(--line); border-radius: var(--r-control);
+  padding:1px 5px; color: var(--ink);
+  direction:ltr; unicode-bidi:isolate; display:inline-block;
+}
+
+.card {
+  background: var(--surface); border:1px solid var(--line);
+  border-radius: var(--r-panel); box-shadow: var(--shadow);
+  padding: var(--s5); display:flex; flex-direction:column; gap: var(--s3);
+}
+
+/* headline numbers */
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap: var(--s3); }
+.tile {
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--r-card);
+  padding: var(--s4); display:flex; flex-direction:column; gap:2px;
+}
+.tile .n { font:600 26px/1.2 var(--mono); color: var(--ink); font-variant-numeric:tabular-nums; }
+.tile .l { font-size:12px; color: var(--ink-faint); line-height:1.5; }
+.tile.good .n { color: var(--done); }
+.tile.bad  .n { color: var(--open); }
+
+/* status pills */
+.pill {
+  display:inline-flex; align-items:center; gap:6px; flex:none;
+  border-radius: var(--r-pill); padding:2px 10px;
+  font-size:11px; font-weight:600; border:1px solid;
+}
+.pill.done  { color:var(--done);  background:var(--done-ground);  border-color:color-mix(in oklab,var(--done) 40%,transparent); }
+.pill.open  { color:var(--open);  background:var(--open-ground);  border-color:color-mix(in oklab,var(--open) 40%,transparent); }
+.pill.watch { color:var(--watch); background:var(--watch-ground); border-color:color-mix(in oklab,var(--watch) 40%,transparent); }
+
+.table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius: var(--r-card); }
+table { border-collapse:collapse; width:100%; min-width:480px; font-size:14px; }
+th, td { text-align:start; padding: var(--s3) var(--s4); border-block-end:1px solid var(--line); vertical-align:top; }
+th { font:500 11px/1.4 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); background:var(--raised); }
+tbody tr:last-child td { border-block-end:none; }
+td { color: var(--ink-muted); }
+td:first-child { color: var(--ink); font-weight:500; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; direction:ltr; text-align:start; }
+
+/* the benchmark bars */
+.bars { display:flex; flex-direction:column; gap: var(--s3); }
+.bar-row { display:grid; grid-template-columns: 92px 1fr 78px; align-items:center; gap: var(--s3); }
+.bar-row .k { font:500 12px/1.4 var(--mono); color: var(--ink-muted); direction:ltr; text-align:start; }
+.bar-track { background: var(--raised); border-radius: var(--r-pill); height:14px; overflow:hidden; border:1px solid var(--line); }
+.bar-track > i { display:block; height:100%; border-radius: var(--r-pill); }
+.bar-row .v { font:500 12px/1.4 var(--mono); color: var(--ink); text-align:end; font-variant-numeric:tabular-nums; }
+.legend { display:flex; gap: var(--s4); flex-wrap:wrap; font-size:12px; color:var(--ink-faint); }
+.swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-inline-end:5px; }
+
+/* ordered roadmap */
+ol.steps { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap: var(--s4); counter-reset: step; }
+ol.steps > li {
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--r-panel);
+  padding: var(--s5); display:grid; grid-template-columns:auto 1fr; gap: var(--s4);
+  box-shadow: var(--shadow);
+}
+ol.steps > li::before {
+  counter-increment: step; content: counter(step);
+  width:30px; height:30px; border-radius: var(--r-pill); flex:none;
+  background: var(--accent-ground); color: var(--accent-text);
+  border:1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+  display:grid; place-items:center; font:600 14px/1 var(--mono);
+}
+ol.steps .body { display:flex; flex-direction:column; gap: var(--s2); min-width:0; }
+ol.steps .head { display:flex; align-items:center; gap: var(--s3); flex-wrap:wrap; }
+ol.steps h3 { font-size:16px; }
+.why { font-size:13.5px; color: var(--ink-muted); }
+.why b { color: var(--ink); font-weight:600; }
+
+ul.plain { margin:0; padding-inline-start:1.2em; color:var(--ink-muted); display:flex; flex-direction:column; gap:var(--s1); font-size:14px; }
+
+footer { color: var(--ink-faint); font-size:13px; border-block-start:1px solid var(--line); padding-block-start: var(--s4); }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+
+<div class="page" dir="rtl">
+
+  <header>
+    <div class="brand">
+      <div class="glyph" aria-hidden="true">N</div>
+      <h1>خريطة طريق NOBA Archive</h1>
+    </div>
+    <p class="sub">
+      أين وصل المشروع، وما الذي يقف على دليل مقاس بدل ادعاء، وما المتبقّي مرتّبًا بترتيب يقلّل تكلفة
+      التراجع.
+    </p>
+    <div class="stamp">2026-08-21 · Phases 0–3 · drop 2026-08-21-7z-creation · 7Z creation added · totals now computed by validate.ps1</div>
+  </header>
+
+  <section>
+    <span class="eyebrow">الحالة</span>
+    <div class="tiles">
+      <div class="tile good"><span class="n">381</span><span class="l">اختبار، صفر إخفاق (لينكس؛ ويندوز 387 بالـMOTW)</span></div>
+      <div class="tile good"><span class="n">0</span><span class="l">تخطٍّ — كل اختبار اشتغل فعلًا</span></div>
+      <div class="tile"><span class="n">59/60</span><span class="l">أرشيف حقيقي وافق 7-Zip</span></div>
+      <div class="tile good"><span class="n">29/29</span><span class="l">ملف من أرشيفاتك طابق 7-Zip بايت ببايت</span></div>
+      <div class="tile good"><span class="n">×3.2</span><span class="l">نمو زمن الاستخراج الصلب مقابل ×4 مدخلات</span></div>
+    </div>
+    <p>
+      المحرّك يفتح ويسرد ويفحص ويستخرج ZIP و7Z وRAR، ويُنشئ ZIP. الملف التنفيذي
+      <code>noba-ar.exe</code> مستقل بذاته (٣٦ ميجابايت) ويعمل على جهاز لم يُثبَّت عليه .NET.
+      <strong>لا توجد واجهة رسومية بعد</strong> — وهذه أكبر كتلة متبقّية.
+    </p>
+  </section>
+
+  <section>
+    <span class="eyebrow">الدليل</span>
+    <h2>ما الذي تم قياسه فعلًا</h2>
+    <p>
+      التمييز الذي حكم المشروع كلّه: فرق بين «الكود يبدو صحيحًا» و«شُغّل وأنتج هذا الرقم». كل سطر هنا
+      من النوع الثاني.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>الادعاء</th><th>الحالة</th><th>الدليل</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>ADR-0005: المحرّك الخلفي لا يمكنه اختيار وجهة</td>
+            <td><span class="pill done">مقاس</span></td>
+            <td>SZ-005 على ويندوز مقابل <code>7z.dll</code> الحقيقي: أرشيف عدائي، مجلد الوجهة بقي فارغًا</td>
+          </tr>
+          <tr>
+            <td>تكوين الشحن يعمل على ويندوز</td>
+            <td><span class="pill done">مقاس</span></td>
+            <td>‏R13 مُغلَقة: ٣٦٤ اختبار، صفر إخفاق، صفر تخطٍّ</td>
+          </tr>
+          <tr>
+            <td>الترابط مع 7-Zip سليم بنيويًا</td>
+            <td><span class="pill done">مقاس</span></td>
+            <td>‏R1 مُغلَقة: ٩/٩ سيناريوهات، <code>PROPVARIANT=24</code> مؤكَّد بغياب الانهيار</td>
+          </tr>
+          <tr>
+            <td>علامة الويب تنتقل لكل ملف مستخرَج</td>
+            <td><span class="pill done">مقاس</span></td>
+            <td>‏MOTW-001…006 اشتغلت على ويندوز — لم تكن قد نُفِّذت مرة واحدة قبلها</td>
+          </tr>
+          <tr>
+            <td>ZIP يوافق 7-Zip على أرشيفات حقيقية</td>
+            <td><span class="pill watch">جزئي</span></td>
+            <td>عدد المدخلات فقط، ٦٠ أرشيفًا — بلا مقارنة محتوى ولا استخراج</td>
+          </tr>
+          <tr>
+            <td>أسماء الملفات العربية القديمة تُقرأ صحيحة</td>
+            <td><span class="pill open">بلا دليل</span></td>
+            <td><strong>صفر</strong> من الـ٦٠ أرشيفًا احتاج ترميزًا قديمًا — الميزة لم تُختبر واقعيًا</td>
+          </tr>
+          <tr>
+            <td>الأداء ينافس 7-Zip</td>
+            <td><span class="pill watch">مقبول</span></td>
+            <td>بعد إصلاح R18: أبطأ ×2.5–3 من 7-Zip على المنصتين، والصلب صار كغير الصلب</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">R18 · مُغلق</span>
+    <h2>الأرشيف الصلب: خوارزمية خاطئة، أُصلحت</h2>
+    <p>
+      كان كل مدخل يُستخرَج باستدعاء <code>Extract</code> منفصل، والكتلة الصلبة تُفكّ كوحدة واحدة — فكل
+      مدخل يعيد فكّ الكتلة من أوّلها. الإصلاح: استدعاء واحد للاختيار كلّه. زمن الاستخراج على ويندوز،
+      ٣٢٠٠ مدخل، الجهاز نفسه والأمر نفسه:
+    </p>
+
+    <div class="card">
+      <div class="bars">
+        <div class="bar-row">
+          <span class="k">7-Zip</span>
+          <span class="bar-track"><i style="width:9.9%; background:var(--done)"></i></span>
+          <span class="v">1.30s</span>
+        </div>
+        <div class="bar-row">
+          <span class="k">NOBA غير صلب</span>
+          <span class="bar-track"><i style="width:25.9%; background:var(--accent)"></i></span>
+          <span class="v">3.39s</span>
+        </div>
+        <div class="bar-row">
+          <span class="k">NOBA صلب — بعد</span>
+          <span class="bar-track"><i style="width:25.2%; background:var(--accent)"></i></span>
+          <span class="v">3.29s</span>
+        </div>
+        <div class="bar-row">
+          <span class="k">NOBA صلب — قبل</span>
+          <span class="bar-track"><i style="width:100%; background:var(--open)"></i></span>
+          <span class="v">13.08s</span>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--done)"></i>المنافس</span>
+        <span><i class="swatch" style="background:var(--accent)"></i>مقبول</span>
+        <span><i class="swatch" style="background:var(--open)"></i>قبل الإصلاح</span>
+      </div>
+    </div>
+
+    <p>
+      <strong>الدليل ليس الرقم المطلق، بل التقارب:</strong> الصلب (3.29 ث) وغير الصلب (3.39 ث) صارا
+      لا يُفرَّق بينهما. ده بالضبط الشكل المتوقَّع حين تُفكّ الكتلة مرّة واحدة بدل مرّة لكل مدخل، وهو
+      أقوى من الأرقام نفسها في إثبات أن الحدّ التربيعي اختفى لا أنه صغر. النمو نزل من
+      <strong>×7.7 إلى ×3.2</strong> مقابل ×4 في المدخلات، وأسوأ نسبة مقابل 7-Zip من ×10.7 إلى <strong>×3</strong>.
+    </p>
+    <p>
+      <strong>وملاحظة تمنع قراءة الرقم أفضل مما هو:</strong> 3.29 ثانية ليست أقل من ثانية كما على لينكس
+      (0.91)، والسبب ظاهر في خطّ الأساس نفسه: 7-Zip يأخذ 1.30 ث على ويندوز مقابل 0.08 على لينكس — أبطأ
+      ~×16، لا نحن. الرقم الذي يحمل معنى عبر المنصتين هو النسبة، وهي ×2.5–3 على الاثنين. R18 أُغلق على
+      ادعاء <em>النمو</em>، لا على ادعاء زمن مطلق.
+    </p>
+    <p>
+      <strong>وأمان كاد يضيع في إصلاح أداء.</strong> إعادة كتابة حلقة الاستخراج أسقطت موضع استدعاء
+      الشقّ <em>الجاري</em> من حارس قنبلة الأرشيف — الذي يعدّ البايتات المُنتَجة فعلًا، مقابل الفحص
+      المسبق الذي يقرأ إجماليات الأرشيف المُعلَنة (وهي كتابة المهاجم: تصلح للرفض، لا للطمأنة). المترجم
+      أمسكها كتحذير «متغيّر لم يُستخدم» فقط. أُعيد، ومن نقطة واحدة يشترك فيها المساران.
+    </p>
+  </section>
+
+  <section>
+    <span class="eyebrow">أوّل أرشيف حقيقي</span>
+    <h2>RAR ما كانش شغّال أصلًا — و٣٨٨ اختبارًا عدّت</h2>
+    <p>
+      أوّل مجلد <code>.rar</code> حقيقي اتوجّهت ليه الأداة: <strong>سبعة من سبعة</strong> رجعوا
+      «مشفَّر، محتاج كلمة مرور» — بما فيهم ملف مش أرشيف من الأساس. مش عيب في RAR، ولا في التعامل مع
+      الصيغة: <b>الصيغة نفسها ما كانتش بتوصل للمحرّك الخلفي.</b>
+    </p>
+
+    <div class="card">
+      <ul class="plain">
+        <li><strong>١ · العطل.</strong> المعالِج بيحدّد الصيغة من المحتوى ويختار المزوّد بيها، وبعدين
+        بيفتح بـ<code>OpenOptions</code> <em>مش شايلة الصيغة</em>. المحرّك الأصلي بيقدّم ثلاثة معالِجات
+        من 7-Zip وراء مدخل واحد، فلمّا محدّش قال له، <b>افترض 7Z</b>.</li>
+        <li><strong>٢ · التشخيص الخاطئ.</strong> 7-Zip بيرد <code>S_FALSE</code> على «مش صيغتي»،
+        وكنّا بنقراها «الترويسة مشفَّرة» — وهي المعنى التاني الوحيد لنفس الرد. فأرشيف RAR سليم راح
+        لمعالِج 7Z، اترفض، واتشخّص إنه مشفَّر.</li>
+        <li><strong>٣ · ليه ٣٨٨ اختبارًا ما مسكوش ده.</strong> كل اختبار موجود بيستعمل 7Z — وهي
+        بالظبط الصيغة اللي الافتراض الغلط سمّاها. اختبارات <code>SZ-</code> الاتناشر بتعدّي من
+        المحرّك كامل (مش سطحية)، والعطل كان تحتها كلها. واختبار الرخصة <code>SZ-011</code> اسمه فيه
+        RAR وبيفحص راية قدرات — وبينجح على محرّك ما يقدرش يفتح RAR واحد.</li>
+      </ul>
+    </div>
+
+    <p>
+      وتحت العطل ده، لمّا اتصلّح، ظهر تلاتة تانيين — كل واحد فيهم كان بيفشل <em>بصمت</em>:
+    </p>
+
+    <div class="card">
+      <ul class="plain">
+        <li><strong>مسار R18 الدفعي كان بيبلع إخفاق المدخلات.</strong> 7-Zip بيبلّغ عن مدخل فشل عبر
+        <code>SetOperationResult</code> وبيرجع <code>S_OK</code> من <code>Extract</code> برضه. المسار
+        الجديد كان بيستعمل ده علشان يرمي الملف المؤقّت وبس — فأرشيف كل مدخلاته فشلت كان
+        <b>يستخرج لا شيء ويقول «نجح»</b>، بينما المسار المفرد بيرمي استثناء لنفس الأرشيف. عيب
+        <em>أدخله إصلاح R18 نفسه</em>، وأوّل أرشيف حقيقي مسكه بعد ساعات.</li>
+        <li><strong>حارس نسبة التمدّد كان معطَّلًا على 7Z وRAR.</strong> <code>kpidPackSize</code> ما
+        كانش بيتقرا أصلًا، فكل مدخل بيقول «صفر بايت مضغوط»، والحارس بيتخطّى الفحص لمّا المضغوط صفر.
+        يعني فشل <b>مفتوحًا</b>، على الصيغتين الأقوى ضغطًا تحديدًا، ومن غير ما يسيب أثر.</li>
+        <li><strong>«تالف» مقابل «غير مدعوم».</strong> أرشيف مفيش له فكّ ترميز في النسخة دي كان
+        بيتقال عنه «تالف» — ادعاء عن الملف، والملف سليم. المستخدم محتاج مُرمِّز، مش نسخة احتياطية.</li>
+      </ul>
+    </div>
+
+    <p>
+      <strong>وملف واحد استحق اسمه:</strong> <code>31-12-2008بعد اقفالها.rar</code> مش أرشيف ولا كان.
+      بايتاته <code>FILE0</code> — سجلّ من جدول ملفات NTFS، اللي بيسيبه برنامج استرجاع البيانات لمّا
+      يسترجع بيانات المدخل الوصفية بدل محتوى الملف. مفيش أداة هتفتحه. دلوقتي بيتقال ده بالنص بدل ما
+      يتطلب كلمة مرور مش موجودة.
+    </p>
+
+    <div class="card">
+      <ul class="plain">
+        <li><strong>موثَّق على ويندوز، على أرشيفاتك نفسها:</strong> ٦ من ٧ اتفكّوا واتقارنوا،
+        <b>٢٩ ملف بتجزئة SHA-256، صفر اختلاف</b> عن 7-Zip. والسابع رفضته الأداتان — هو ملف NTFS.
+        ده أول دليل في المشروع إن مسار فكّ ترميز RAR بيطلع بايتات صحيحة، وجاي من مقارنة ملف بملف
+        مش من عدد مدخلات.</li>
+        <li><strong>التغطية:</strong> RAR2 (٢٠٠٧) وRAR4 (٢٠٠٩–٢٠١٢) وRAR5 (٢٠٢٢)، ~١٠٥ ميجابايت،
+        وبداخلها JPEG وDWG وقاعدة Access وتقرير Crystal.</li>
+        <li><strong>واللي لسه بلا دليل:</strong> R16 — الترميز العربي القديم. كل الأرشيفات دي
+        أسماؤها Unicode سليمة، فمسار التخمين ما اتدخلش أصلًا. والـRAR المشفَّر برضه ما اتجربش.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">إنشاء 7Z</span>
+    <h2>الكتابة اشتغلت — وثلاثة عيوب صامتة في الطريق</h2>
+    <p>
+      المحرّك الأصلي بقى يكتب 7Z: نفس المحرّك، نفس قواعد الأمان، ونفس بوابة القدرات. الفرق إن
+      <code>Create</code> بقت صحيحة لـ7Z <b>لأنها تشتغل، مش لأنها معلَنة</b>.
+    </p>
+
+    <div class="card">
+      <ul class="plain">
+        <li><strong>موثَّق مقابل 7-Zip نفسه:</strong> الأرشيفات اللي بننتجها يسردها ويفحصها
+        (<code>Everything is Ok</code>) ويستخرجها سطر أوامر 7-Zip الحقيقي، <b>بايت ببايت</b> مطابقة
+        للمصدر — بما فيها اسم عربي، واسم بـ٢٠٠ حرف، وملف فارغ، وملف ٨ ميجابايت غير قابل للضغط،
+        وطابع زمني من ٢٠١٩.</li>
+        <li><strong>الكتابة تقلب التحكّم زي الاستخراج:</strong> <code>UpdateItems</code> بياخد القائمة
+        كلها وبعدين بيسأل عن بايتات كل مدخل وقت ما الضاغط يحب. فـ<code>IArchiveBuilder</code> بقى
+        بياخد دالة تفتح المحتوى عند الطلب بدل تيار مفتوح — وإلا مجلد حقيقي يستنفد المقابض.</li>
+      </ul>
+    </div>
+
+    <p><strong>وثلاثة عيوب، كلها كانت هتعدّي بصمت:</strong></p>
+
+    <div class="card">
+      <ul class="plain">
+        <li><strong>١ · خطوة مصفوفة <code>PROPVARIANT</code>.</strong> <code>ISetProperties</code>
+        بيفهرس المصفوفة بخطوة المنصّة — ٢٤ بايت على ويندوز و١٦ على لينكس. تمرير مصفوفة مُدارة بحجم
+        ويندوز يعني إن <b>كل خاصية بعد الأولى تُقرأ من مكان غلط</b>. مستوى الضغط اشتغل (الفهرس ٠)
+        وكل اللي بعده اتجاهل: أرشيف مطلوب «غير صلب» رجع صلبًا، من غير أي خطأ. نفس درس الـ٢٤/١٦ الأصلي،
+        في الاتجاه اللي التحليل الأول ما غطّاهوش: المبالغة في الحجم آمنة لقيمة واحدة وغلط لمصفوفة.</li>
+        <li><strong>٢ · <code>kpidMTime</code> كان ٢٠ بدل ١٢.</strong> إزاحة بثمانية في تعداد
+        الخصائص بتقع على <code>kpidType</code>، والنتيجة مش خطأ — أرشيفات <b>بلا طوابع زمنية</b>،
+        وكل الأدوات بتعرضها فاضية مش كعطل.</li>
+        <li><strong>٣ · المحرّك الأصلي ما كانش بيقرا الطوابع أصلًا.</strong> فكل ملف 7Z أو RAR
+        بيتستخرج بوقت كتابته مش بوقت أرشفته. بصمت، لأن طابعًا معقولًا يبدو حقيقيًا. مسار ZIP المُدار
+        شايل ده من المرحلة ٢.</li>
+      </ul>
+    </div>
+
+    <p>
+      <strong>وعيب رابع في مسار القراءة</strong> ظهر لمّا بقينا نقدر نكتب أرشيفات مشفَّرة:
+      <code>TestAsync</code> ما كانش بيطلب كلمة مرور أبدًا. أرشيف مدخلاته مشفَّرة وترويسته مكشوفة
+      بيفتح من غير كلمة مرور، ففحصه كان بيقول «طريقة غير مدعومة» لكل مدخل. ده مش بس فعل
+      <code>test</code>: «اضغط واحذف الأصول» بيتحقّق من الأرشيف الجديد قبل ما يحذف حاجة.
+    </p>
+
+    <p>
+      <strong>القدرات بتقول الصح:</strong> 7Z كسب <code>Create</code> و<code>AddEntries</code>
+      و<code>Encrypt</code> و<code>EncryptFileNames</code> و<code>SolidCompression</code>. وما كسبش
+      <code>SplitVolumes</code> ولا <code>RemoveEntries</code> ولا <code>RenameEntries</code> — لأنها
+      غير مُنفَّذة، واختبار <code>7ZC-011</code> بيثبت إن خيارًا غير معلَن <b>يُرفَض</b> مش يُتجاهَل.
+      وRAR لسه لا يُنشأ ولن يُنشأ (ADR-0004).
+    </p>
+  </section>
+
+  <section>
+    <span class="eyebrow">الترتيب</span>
+    <h2>المتبقّي</h2>
+    <p>
+      الترتيب مبني على قاعدة واحدة: <strong>ما يغيّر عقدًا يسبق ما يُبنى فوقه.</strong> تغيير واجهة
+      بعد بناء مستهلكيها أغلى من تغييرها قبله بمرّات.
+    </p>
+
+    <ol class="steps">
+      <li>
+        <div class="body">
+          <div class="head"><h3>إصلاح R18 — مسار استخراج دفعي</h3><span class="pill done">تمّ · موثَّق على ويندوز</span></div>
+          <p class="why">
+            استدعاء <code>Extract</code> واحد للاختيار كلّه، وكاتب الاستخراج المُحصَّن يوفّر تيارًا لكل
+            مدخل عبر دالة الاستدعاء نفسها. ADR-0005 بقي كاملًا — بل صار أوضح: <code>ExtractManyAsync</code>
+            لا يرى مسارًا أصلًا. ٨٢ اختبار تكامل بـ<code>Skipped: 0</code>، و٣٨٨ اختبارًا إجمالًا بصفر إخفاق.
+            <code>PreferSingleEntryExtraction</code> يُبقي المسار القديم متاحًا، وSZ-013 يقارن الشجرتين
+            بايتًا ببايت، وSZ-014 يثبّت أن المدخلات العدائية ما زالت تُرفَض على المسار الدفعي.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <div class="head"><h3>ملاحظات استخدام حقيقية</h3><span class="pill done">تمّت — ٤ عيوب، وإصلاحها موثَّق</span></div>
+          <p class="why">
+            سبعة أرشيفات RAR حقيقية كشفت أربعة عيوب في ساعة، واحد منها أدخله إصلاح R18 نفسه.
+            والإصلاح اتأكد على ويندوز: ٢٩ ملف بتجزئة SHA-256، صفر اختلاف عن 7-Zip.
+            <b>الباقي:</b> R16 (الترميز العربي القديم) لسه بلا دليل — كل الأرشيفات دي أسماؤها
+            Unicode سليمة، فالميزة ما اتمستّش. محتاج أرشيف عربي <em>قديم</em> فعلًا.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <div class="head"><h3>إنشاء 7Z (والمشفَّر)</h3><span class="pill done">تمّ · موثَّق مقابل 7-Zip</span></div>
+          <p class="why">
+            تمّ. الإنشاء والتشفير AES-256 وإخفاء أسماء الملفات والضغط الصلب — كلها مقاسة، والقدرات
+            اللي مش منفَّذة (تقسيم لمجلدات، تعديل أرشيف قائم) مرفوضة صراحةً مش متجاهَلة. يعني شاشة
+            «إنشاء أرشيف» تقدر تُبنى دلوقتي فوق قائمة قدرات حقيقية. <b>المتبقّي:</b> تشغيلة ويندوز.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <div class="head"><h3>الواجهة الرسومية — WinUI 3</h3><span class="pill open">التالي · أكبر كتلة</span></div>
+          <p class="why">
+            على أساس التصميم المنشور: الرموز، وقواعد RTL، وأرضية الوصولية. أكبر بند متبقٍّ بفارق،
+            وأول سطح حقيقي يُختبر عليه الأساس. <b>بعد 1 و3</b> لأنها تستهلك عقدهما مباشرة.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <div class="head"><h3>التغليف وتكامل Explorer</h3><span class="pill">لاحقًا</span></div>
+          <p class="why">
+            MSI عبر WiX، وقائمة سياق متفرقة، وربط الامتدادات. <b>بعد الواجهة</b> لأن المُثبِّت يشحن
+            التطبيق — لا العكس. وهنا يُحسم أيضًا شحن <code>7z.dll</code> ضمن التثبيت بدل الاعتماد على
+            وجود 7-Zip.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <div class="head"><h3>تكامل NOBA OS</h3><span class="pill">مستمر</span></div>
+          <p class="why">
+            عقد التثبيت والاكتشاف موجود منذ المرحلة الأولى، و<code>noba-ar.exe</code> يعمل اليوم.
+            <b>أخيرًا في التنفيذ، لكنه مُصمَّم طوال الوقت</b> — لأنه يحتاج مُثبِّتًا مستقرًّا يشير إليه.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <span class="eyebrow">صراحة</span>
+    <h2>ما يستحق قوله بلا تجميل</h2>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>الأساس متين والمنتج غير موجود بعد.</strong> ٣٨١ اختبارًا ومحرّك يعمل، وصفر واجهة. المتبقّي إلى تطبيق ويندوز قابل للشحن أكبر مما أُنجز.</li>
+        <li><strong>أنا المؤلف والمراجع — وهذا حدّه ظهر اليوم.</strong> ٣٨٨ اختبارًا من تأليفي عدّت على محرّك لا يفتح ملف RAR واحدًا. سبعة ملفات من جهازك كشفت في ساعة ما لم تكشفه المراجعة الذاتية في ثلاث مراحل.</li>
+        <li><strong>الميزة العربية المميِّزة بلا دليل واقعي.</strong> بُنيت واختُبرت على عيّنات صنعتُها بنفسي، ولم يمسّها أرشيف حقيقي واحد.</li>
+        <li><strong>القياسات إرشادية.</strong> جهاز واحد، تشغيلة واحدة لكل رقم، بلا تسخين ولا تكرار.</li>
+        <li><strong>وتصحيح:</strong> رقمَا «٣٨٨» و«٣٩٦» اللي نُشرا هنا قبل كده كانا <b>جمعًا يدويًا خاطئًا</b> لإجماليات المجموعات. الصح ٣٦٦ و٣٧٥. النجاح والتخطي كانا مقروءين من التقارير ولم يتغيرا — لكن رقمًا لم يحسبه أحد ليس دليلًا، و<code>validate.ps1</code> بقى يجمعها بنفسه ويطبع السطر.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    كل رقم في هذه الصفحة ناتج عن أمر شُغِّل، لا عن قراءة كود. حيث لا يوجد رقم، قيل ذلك صراحة.
+  </footer>
+
+</div>

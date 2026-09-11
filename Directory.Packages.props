@@ -1,0 +1,28 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!--
+    Versions are pinned exactly (DEPENDENCIES.md §4). These are the shipping versions; they are
+    restored on the Windows build machine. This sandbox builds with NobaOfflineBuild=true and does
+    not restore them - see PHASE_1_REPORT.md.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
+    <!--
+      Windows App SDK. Only NOBA.Archive.App references these, and that project is not in
+      NOBA.Archive.sln - see its csproj for why.
+    -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.7.250606001" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+
+    <!-- xunit.v3 3.0.0 confirmed to restore on 2026-08-19. -->
+    <PackageVersion Include="xunit.v3" Version="3.0.0" />
+  </ItemGroup>
+</Project>

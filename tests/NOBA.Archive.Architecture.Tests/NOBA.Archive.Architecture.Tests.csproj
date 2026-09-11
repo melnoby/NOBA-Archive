@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Targets net10.0-windows so it can load and police NOBA.Archive.Windows alongside the rest. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>NOBA.Archive.Architecture.Tests</RootNamespace>
+    <NobaTestProject>true</NobaTestProject>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.TestKit\NOBA.Archive.TestKit.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Engine\NOBA.Archive.Engine.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Cli\NOBA.Archive.Cli.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Windows\NOBA.Archive.Windows.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Presentation\NOBA.Archive.Presentation.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.ShellBridge\NOBA.Archive.ShellBridge.csproj" />
+  </ItemGroup>
+</Project>

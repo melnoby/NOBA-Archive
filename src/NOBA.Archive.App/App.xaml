@@ -1,0 +1,15 @@
+<Application
+    x:Class="NOBA.Archive.App.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!-- Generated from DesignTokens. DES-004 fails the build if it drifts. -->
+                <ResourceDictionary Source="ms-appx:///Themes.generated.xaml" />
+                <ResourceDictionary Source="ms-appx:///Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

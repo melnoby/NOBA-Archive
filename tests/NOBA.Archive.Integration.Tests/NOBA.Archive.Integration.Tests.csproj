@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.Integration.Tests</RootNamespace>
+    <NobaTestProject>true</NobaTestProject>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.TestKit\NOBA.Archive.TestKit.csproj" />
+    <!--
+      The engine facade, deliberately: SEC-### and INT-### exercise the composition an embedding host
+      actually gets, not a hand-assembled graph that could accidentally omit a guard.
+    -->
+    <ProjectReference Include="..\..\src\NOBA.Archive.Engine\NOBA.Archive.Engine.csproj" />
+  </ItemGroup>
+</Project>

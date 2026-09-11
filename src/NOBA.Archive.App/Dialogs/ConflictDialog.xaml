@@ -1,0 +1,60 @@
+<ContentDialog
+    x:Class="NOBA.Archive.App.Dialogs.ConflictDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    DefaultButton="Primary"
+    Background="{ThemeResource NobaSurfaceRaised}"
+    BorderBrush="{ThemeResource NobaBorderSubtle}">
+
+    <StackPanel Spacing="12" MinWidth="420">
+
+        <TextBlock
+            x:Name="BodyText"
+            TextWrapping="Wrap"
+            Foreground="{ThemeResource NobaTextPrimary}" />
+
+        <StackPanel Spacing="2">
+            <TextBlock
+                x:Name="PathLabel"
+                FontSize="{StaticResource NobaTypeCaptionSize}"
+                Foreground="{ThemeResource NobaTextSecondary}" />
+
+            <!-- The path the person is judging. Isolated by the view model, pinned LTR by the style. -->
+            <TextBlock
+                x:Name="PathText"
+                Style="{StaticResource NobaMonoTextStyle}"
+                TextWrapping="Wrap"
+                IsTextSelectionEnabled="True" />
+        </StackPanel>
+
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Spacing="2">
+                <TextBlock x:Name="ExistingLabel" Style="{StaticResource NobaColumnHeaderStyle}" />
+                <TextBlock x:Name="ExistingSize" Style="{StaticResource NobaMonoTextStyle}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock x:Name="IncomingLabel" Style="{StaticResource NobaColumnHeaderStyle}" />
+                <TextBlock x:Name="IncomingSize" Style="{StaticResource NobaMonoTextStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <!--
+            All three outcomes are on screen at once, named in full. Nothing is preselected: a default
+            here would be this dialog deciding what happens to the person's file, and the primary button
+            stays disabled until they have actually chosen.
+        -->
+        <StackPanel Spacing="6">
+            <RadioButton x:Name="OverwriteChoice" GroupName="ConflictChoice" Checked="OnChoiceChanged" />
+            <RadioButton x:Name="RenameChoice" GroupName="ConflictChoice" Checked="OnChoiceChanged" />
+            <RadioButton x:Name="SkipChoice" GroupName="ConflictChoice" Checked="OnChoiceChanged" />
+        </StackPanel>
+
+        <CheckBox x:Name="ApplyToAllBox" />
+    </StackPanel>
+</ContentDialog>

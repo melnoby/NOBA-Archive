@@ -1,0 +1,358 @@
+<title>أساس تصميم NOBA للواجهة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ---- page chrome. Neutral with a blue bias, so the specimens carry the colour ---------------- */
+:root {
+  --page-ground:#FBFCFE; --page-surface:#FFFFFF; --page-line:#E2E7F0; --page-line-strong:#C9D2E2;
+  --page-ink:#111827; --page-muted:#5B6B80; --page-faint:#8494AC;
+  --page-accent:#1B4FD8; --page-accent-ground:#EDF2FE;
+  --page-good:#15803D; --page-bad:#C7362F; --page-warn:#8A5B00;
+  --page-shadow: 0 1px 2px rgba(17,24,39,.05), 0 10px 30px rgba(17,24,39,.06);
+
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:72px;
+  --ar:"IBM Plex Sans Arabic","Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page-ground:#080D18; --page-surface:#101728; --page-line:#20293F; --page-line-strong:#313C58;
+    --page-ink:#E9EDF7; --page-muted:#98A3BA; --page-faint:#6C7793;
+    --page-accent:#7BA5FF; --page-accent-ground:#14203C;
+    --page-good:#4ADE80; --page-bad:#F87171; --page-warn:#FBBF24;
+    --page-shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --page-ground:#080D18; --page-surface:#101728; --page-line:#20293F; --page-line-strong:#313C58;
+  --page-ink:#E9EDF7; --page-muted:#98A3BA; --page-faint:#6C7793;
+  --page-accent:#7BA5FF; --page-accent-ground:#14203C;
+  --page-good:#4ADE80; --page-bad:#F87171; --page-warn:#FBBF24;
+  --page-shadow: none;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--page-ground); color:var(--page-ink);
+  font-family:var(--ar); font-size:15px; line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+.page{max-width:1060px; margin-inline:auto; padding:var(--s8) var(--s5); display:flex; flex-direction:column; gap:var(--s8)}
+
+header{display:flex; flex-direction:column; gap:var(--s3)}
+.eyebrow{font:500 11px/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--page-faint)}
+h1{margin:0; font-size:clamp(28px,4.2vw,38px); font-weight:600; letter-spacing:-.015em; text-wrap:balance}
+h2{margin:0; font-size:23px; font-weight:600; text-wrap:balance}
+h3{margin:0; font-size:15px; font-weight:600}
+p{margin:0; color:var(--page-muted); max-width:66ch}
+p strong,li strong{color:var(--page-ink); font-weight:600}
+section{display:flex; flex-direction:column; gap:var(--s4)}
+code{font:400 .88em/1.5 var(--mono); background:var(--page-accent-ground); border-radius:4px; padding:1px 5px;
+     color:var(--page-ink); direction:ltr; unicode-bidi:isolate; display:inline-block}
+.stamp{font:400 12px/1.7 var(--mono); color:var(--page-faint); direction:ltr; text-align:start}
+
+.notice{
+  border:1px solid color-mix(in oklab, var(--page-warn) 45%, transparent);
+  background:color-mix(in oklab, var(--page-warn) 10%, transparent);
+  border-radius:10px; padding:var(--s4) var(--s5); display:flex; flex-direction:column; gap:var(--s2);
+}
+.notice h3{color:var(--page-warn)}
+
+.card{background:var(--page-surface); border:1px solid var(--page-line); border-radius:12px;
+      padding:var(--s5); box-shadow:var(--page-shadow); display:flex; flex-direction:column; gap:var(--s3)}
+ul.plain{margin:0; padding-inline-start:1.15em; color:var(--page-muted); display:flex; flex-direction:column; gap:var(--s1); font-size:14.5px}
+
+/* ---- specimens: the product's own palette, rendered at real proportions --------------------- */
+.specimens{display:grid; grid-template-columns:1fr; gap:var(--s5)}
+@media (min-width:900px){.specimens{grid-template-columns:1fr 1fr}}
+
+.spec{display:flex; flex-direction:column; gap:var(--s2)}
+.spec-label{display:flex; align-items:baseline; gap:var(--s2); flex-wrap:wrap}
+.spec-label .k{font:500 11px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--page-faint)}
+.spec-label .v{font-size:13px; color:var(--page-muted)}
+
+.win{
+  --n-base:#0B1220; --n-raised:#141C2B; --n-sunken:#070C16; --n-selected:rgba(27,79,216,.24);
+  --n-subtle:rgba(255,255,255,.08); --n-strong:rgba(255,255,255,.34); --n-focus:#60A5FA;
+  --n-text:#F8FAFC; --n-text2:#94A3B8; --n-accent:#2563EB; --n-on-accent:#FFFFFF;
+  --n-blocked:#F87171; --n-enc:#60A5FA;
+  border-radius:10px; overflow:hidden; border:1px solid var(--page-line-strong);
+  background:var(--n-base); color:var(--n-text);
+  font-size:13px; line-height:1.55; box-shadow:var(--page-shadow);
+}
+.win.light{
+  --n-base:#F8FAFC; --n-raised:#FFFFFF; --n-sunken:#EEF2F7; --n-selected:#BFDBFE;
+  --n-subtle:#D8DEE8; --n-strong:#7A8AA3; --n-focus:#2563EB;
+  --n-text:#1E293B; --n-text2:#5B6B80; --n-accent:#2563EB; --n-on-accent:#FFFFFF;
+  --n-blocked:#DC2626; --n-enc:#1B4FD8;
+}
+.win.ltr{direction:ltr}
+.win.rtl{direction:rtl}
+
+.win .titlebar{height:36px; display:flex; align-items:center; gap:var(--s2); padding-inline:var(--s3);
+               border-bottom:1px solid var(--n-subtle)}
+.win .glyph{width:18px;height:18px;border-radius:4px;background:var(--n-accent);color:var(--n-on-accent);
+            display:grid;place-items:center;font:700 11px/1 var(--mono); direction:ltr}
+.win .title{font-size:12px;color:var(--n-text2)}
+
+.win .body{display:grid; grid-template-columns:132px 1fr; min-height:290px}
+.win .nav{background:var(--n-raised); border-inline-end:1px solid var(--n-subtle); padding:var(--s2);
+          display:flex; flex-direction:column; gap:2px}
+.win .nav .item{padding:6px 10px; border-radius:8px; color:var(--n-text); font-size:12.5px}
+.win .nav .item.sel{background:var(--n-selected)}
+.win .nav .spacer{flex:1}
+.win .nav .btn{padding:5px 10px; border-radius:8px; border:1px solid var(--n-strong); font-size:11.5px;
+               color:var(--n-text2); text-align:center}
+
+.win .main{display:flex; flex-direction:column; min-width:0}
+.win .toolbar{height:36px; display:flex; align-items:center; gap:6px; padding-inline:var(--s3);
+              border-bottom:1px solid var(--n-subtle)}
+.win .chip{padding:4px 9px; border-radius:8px; border:1px solid var(--n-strong); font-size:11.5px; color:var(--n-text)}
+.win .chip.primary{background:var(--n-accent); border-color:var(--n-accent); color:var(--n-on-accent)}
+.win .chip.off{opacity:.45}
+.win .search{margin-inline-start:auto; min-width:96px; padding:4px 9px; border-radius:8px;
+             border:1px solid var(--n-strong); font-size:11.5px; color:var(--n-text2)}
+
+.win .crumbs{display:flex; align-items:center; gap:6px; padding:6px var(--s3); font-size:11.5px; color:var(--n-text2)}
+.win .crumbs .sep{opacity:.6}
+
+.win .warn{margin:0 var(--s3) 6px; padding:6px 9px; border-radius:8px; font-size:11px;
+           background:color-mix(in oklab,#FBBF24 16%,transparent); color:#FBBF24;
+           border:1px solid color-mix(in oklab,#FBBF24 40%,transparent)}
+.win.light .warn{color:#8A5B00; border-color:color-mix(in oklab,#8A5B00 35%,transparent)}
+
+.win .list{background:var(--n-sunken); flex:1; padding:2px 0}
+.win .head{display:grid; grid-template-columns:1fr 70px 84px; gap:var(--s3); padding:4px var(--s3);
+           font:500 10.5px/1.4 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--n-text2)}
+.win .row{display:grid; grid-template-columns:1fr 70px 84px; gap:var(--s3); padding:0 var(--s3);
+          align-items:center; min-height:28px}
+.win.ar .row{min-height:32px}
+.win .row.sel{background:var(--n-selected)}
+.win .row .name{display:flex; align-items:center; gap:6px; min-width:0}
+.win .row .name span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.win .ico{width:14px; text-align:center; opacity:.75; direction:ltr}
+.win .num{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:11.5px; color:var(--n-text2);
+          direction:ltr; text-align:end; unicode-bidi:isolate}
+.win .tag{font-size:10px; padding:1px 6px; border-radius:999px; white-space:nowrap;
+          border:1px solid currentColor}
+.win .tag.blocked{color:var(--n-blocked)}
+.win .tag.enc{color:var(--n-enc)}
+.win .status{height:26px; display:flex; align-items:center; padding-inline:var(--s3);
+             border-top:1px solid var(--n-subtle); background:var(--n-raised);
+             font-size:11px; color:var(--n-text2)}
+.win .status .num{margin-inline-start:0}
+
+/* ---- token tables --------------------------------------------------------------------------- */
+.table-wrap{overflow-x:auto; border:1px solid var(--page-line); border-radius:10px; background:var(--page-surface)}
+table{border-collapse:collapse; width:100%; min-width:520px; font-size:14px}
+th,td{text-align:start; padding:10px var(--s4); border-block-end:1px solid var(--page-line); vertical-align:middle}
+th{font:500 10.5px/1.4 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--page-faint);
+   background:color-mix(in oklab,var(--page-line) 30%,transparent)}
+tbody tr:last-child td{border-block-end:none}
+td{color:var(--page-muted)}
+td:first-child{color:var(--page-ink); font-weight:500}
+.swatch{display:inline-block; width:34px; height:16px; border-radius:4px; border:1px solid var(--page-line-strong);
+        vertical-align:-3px; margin-inline-end:8px}
+.ratio{font-family:var(--mono); font-variant-numeric:tabular-nums; direction:ltr; unicode-bidi:isolate}
+.pass{color:var(--page-good); font-weight:600}
+.was{color:var(--page-bad); font-family:var(--mono); font-size:12.5px; direction:ltr; unicode-bidi:isolate}
+
+.pair{display:grid; grid-template-columns:1fr; gap:var(--s4)}
+@media (min-width:760px){.pair{grid-template-columns:1fr 1fr}}
+
+footer{border-top:1px solid var(--page-line); padding-top:var(--s5); color:var(--page-faint); font-size:13px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important; animation:none!important}}
+</style>
+
+<div class="page" dir="rtl">
+
+  <header>
+    <span class="eyebrow">WinUI 3 · Design Foundation</span>
+    <h1>أساس تصميم واجهة NOBA</h1>
+    <p>
+      نظام التصميم بعد ما بقى كودًا: رموز مُولِّدة لقاموس WinUI، وتباين مقاس بدل مُدّعى، وقواعد
+      ثنائية الاتجاه مُختبَرة. والعربية هنا وضع أول لا ترجمة لاحقة.
+    </p>
+    <div class="stamp">drop 2026-08-21-winui-foundation · tokens generated from DesignTokens.cs · 47 presentation tests</div>
+  </header>
+
+  <div class="notice">
+    <h3>ما هذه الصفحة، وما ليست</h3>
+    <p>
+      اللوحات في الأسفل <strong>رسم تصميمي بـHTML بالرموز الحقيقية</strong> — نفس قيم الألوان والمسافات
+      وارتفاعات الصفوف التي يولّدها <code>DesignTokens.cs</code>. وهي <strong>ليست لقطات من التطبيق</strong>.
+      WinUI 3 لا يُبنى إلا على ويندوز، والبيئة التي كُتب فيها هذا الكود لينكس، فلا يوجد بعد تطبيق
+      مُشغَّل تُلتقط منه صورة. اللقطات الحقيقية تأتي من جهازك بعد أول بناء ناجح.
+    </p>
+  </div>
+
+  <section>
+    <span class="eyebrow">الشاشة</span>
+    <h2>الغلاف وشاشة التصفّح — بالاتجاهين</h2>
+    <p>
+      نفس الشاشة، نفس الرموز، لغتان. لاحظ أن <strong>التخطيط كله ينعكس</strong> — الشريط الجانبي،
+      وترتيب الأزرار، وبداية الصفوف — بينما <strong>الأرقام والمسارات تبقى من اليسار لليمين</strong>،
+      وارتفاع الصف يزيد من ٢٨ إلى ٣٢ بكسل في العربية لأن ارتفاع السطر دالة في الكتابة لا ثابت.
+    </p>
+
+    <div class="specimens">
+      <div class="spec">
+        <div class="spec-label"><span class="k">ar · RTL · dark</span><span class="v">العربية، سمة داكنة</span></div>
+        <div class="win rtl ar">
+          <div class="titlebar"><div class="glyph">N</div><div class="title">نوبا للأرشفة</div></div>
+          <div class="body">
+            <div class="nav">
+              <div class="item sel">تصفّح</div>
+              <div class="item">إنشاء</div>
+              <div class="item">العمليات</div>
+              <div class="item">الإعدادات</div>
+              <div class="spacer"></div>
+              <div class="btn">English</div>
+              <div class="btn">تبديل السمة</div>
+            </div>
+            <div class="main">
+              <div class="toolbar">
+                <div class="chip primary">فتح أرشيف</div>
+                <div class="chip">استخراج الكل</div>
+                <div class="chip off">استخراج المحدد</div>
+                <div class="search">ابحث في الأرشيف</div>
+              </div>
+              <div class="crumbs"><span>مشروع</span><span class="sep">‹</span><span>مستندات</span></div>
+              <div class="warn">ترميز الأسماء مُخمَّن — قد تظهر الأسماء خطأ.</div>
+              <div class="list">
+                <div class="head"><span>الاسم</span><span class="num">الحجم</span><span class="num">التعديل</span></div>
+                <div class="row"><div class="name"><span class="ico">▸</span><span>تقارير</span></div><div class="num">1.4 MB</div><div class="num">2019-03-14</div></div>
+                <div class="row sel"><div class="name"><span class="ico">▪</span><span>تقرير سنوي.txt</span></div><div class="num">19 KB</div><div class="num">2022-02-15</div></div>
+                <div class="row"><div class="name"><span class="ico">▪</span><span>خزان علوي.dwg</span><span class="tag enc">مشفَّر</span></div><div class="num">147 KB</div><div class="num">2018-05-07</div></div>
+                <div class="row"><div class="name"><span class="ico">▪</span><span>‭..\..\evil.txt‬</span><span class="tag blocked">⛔ مرفوض</span></div><div class="num">—</div><div class="num">—</div></div>
+              </div>
+              <div class="status"><span class="num">2,481 · 37 · 1</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec-label"><span class="k">en · LTR · light</span><span class="v">الإنجليزية، سمة فاتحة</span></div>
+        <div class="win ltr light">
+          <div class="titlebar"><div class="glyph">N</div><div class="title">NOBA Archive</div></div>
+          <div class="body">
+            <div class="nav">
+              <div class="item sel">Browse</div>
+              <div class="item">Create</div>
+              <div class="item">Operations</div>
+              <div class="item">Settings</div>
+              <div class="spacer"></div>
+              <div class="btn">العربية</div>
+              <div class="btn">Switch theme</div>
+            </div>
+            <div class="main">
+              <div class="toolbar">
+                <div class="chip primary">Open archive</div>
+                <div class="chip">Extract all</div>
+                <div class="chip off">Extract selected</div>
+                <div class="search">Search this archive</div>
+              </div>
+              <div class="crumbs"><span>project</span><span class="sep">›</span><span>docs</span></div>
+              <div class="warn">Entry names were decoded by guesswork and may be wrong.</div>
+              <div class="list">
+                <div class="head"><span>Name</span><span class="num">Size</span><span class="num">Modified</span></div>
+                <div class="row"><div class="name"><span class="ico">▸</span><span>reports</span></div><div class="num">1.4 MB</div><div class="num">2019-03-14</div></div>
+                <div class="row sel"><div class="name"><span class="ico">▪</span><span>quarterly.txt</span></div><div class="num">19 KB</div><div class="num">2022-02-15</div></div>
+                <div class="row"><div class="name"><span class="ico">▪</span><span>tank.dwg</span><span class="tag enc">Encrypted</span></div><div class="num">147 KB</div><div class="num">2018-05-07</div></div>
+                <div class="row"><div class="name"><span class="ico">▪</span><span>‭..\..\evil.txt‬</span><span class="tag blocked">⛔ Blocked</span></div><div class="num">—</div><div class="num">—</div></div>
+              </div>
+              <div class="status"><span class="num">2,481 · 37 · 1</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <ul class="plain">
+        <li><strong>المدخل المرفوض ظاهر لا مخفي.</strong> إخفاؤه يحرم المستخدم من معرفة أن الأرشيف
+        <em>حاول</em>، وهي أهم نصف فائدة الرفض. ومعلَّم بأيقونة ونص، <b>لا بلون وحده</b> — عمى الألوان
+        الأحمر/الأخضر هو الأشيع، ورفض أمني يُعرض بلون فقط هو رفض فاشل.</li>
+        <li><strong>المسار داخل الصف معزول اتجاهيًا.</strong> <code>..\..\evil.txt</code> بجوار اسم عربي
+        يُعاد ترتيبه بصريًا بلا عزل، فيُعرض مسار غير المسار الذي يُحكم عليه.</li>
+        <li><strong>الأرقام أعمدة يسار-يمين في اللغتين</strong>، بأرقام جدولية حتى تتراصّ مهما كان الخط.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">التباين</span>
+    <h2>خمسة أزواج كانت ترسب في AA</h2>
+    <p>
+      وثيقة المرحلة الأولى ادّعت مطابقة WCAG AA لكل زوج لوني. أول تشغيل لاختبار التباين
+      (<code>DES-001</code>) حسب الأزواج فعليًا: <strong>خمسة رسبت</strong>. الادعاء كان جملة في مستند،
+      والقياس كشفه في أول ثانية.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>الزوج</th><th>السمة</th><th>كان</th><th>صار</th><th>القيمة الجديدة</th></tr></thead>
+        <tbody>
+          <tr><td>border.strong على surface.base</td><td>داكنة</td><td class="was">1.59:1</td><td class="ratio pass">3.10:1</td><td><span class="swatch" style="background:#5A6172"></span>أبيض ٣٤٪ بدل ١٦٪</td></tr>
+          <tr><td>border.strong على surface.raised</td><td>فاتحة</td><td class="was">2.56:1</td><td class="ratio pass">3.50:1</td><td><span class="swatch" style="background:#7A8AA3"></span>#7A8AA3</td></tr>
+          <tr><td>text.secondary على surface.sunken</td><td>فاتحة</td><td class="was">4.23:1</td><td class="ratio pass">4.84:1</td><td><span class="swatch" style="background:#5B6B80"></span>#5B6B80</td></tr>
+          <tr><td>state.allowed على surface.raised</td><td>فاتحة</td><td class="was">3.30:1</td><td class="ratio pass">5.02:1</td><td><span class="swatch" style="background:#15803D"></span>#15803D</td></tr>
+          <tr><td>state.warning على surface.raised</td><td>فاتحة</td><td class="was">3.19:1</td><td class="ratio pass">5.02:1</td><td><span class="swatch" style="background:#B45309"></span>#B45309</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      ألوان الحالة تُقاس عند <strong>4.5:1</strong> لا 3:1، لأنها تُقرأ كنص («مرفوض»، «مسموح»)، ورفض
+      يحتاج المستخدم أن يحدّق فيه هو رفض يُتجاهَل. والرموز الشفافة تُركَّب على سطحها قبل القياس: قياس
+      لون تحديد بشفافية ٢٤٪ كأنه معتم يجيب سؤالًا لا يطرحه أحد.
+    </p>
+  </section>
+
+  <section>
+    <span class="eyebrow">البنية</span>
+    <h2>لماذا المنطق خارج XAML</h2>
+    <div class="pair">
+      <div class="card">
+        <h3>NOBA.Archive.Presentation</h3>
+        <p>
+          مشروع .NET عادي بلا أي اعتمادية على ويندوز: الرموز، قواعد الاتجاه، النصوص، شجرة التصفّح،
+          البحث، وقرارات القدرات. <strong>يُبنى ويُختبَر في أي مكان</strong> — ٤٧ اختبارًا.
+        </p>
+      </div>
+      <div class="card">
+        <h3>NOBA.Archive.App</h3>
+        <p>
+          XAML وربط فقط. المشروع الوحيد الذي لا يُبنى إلا على ويندوز، ولذلك هو خارج
+          <code>NOBA.Archive.sln</code> — إضافته كانت ستنهي قدرة الحل على البناء والاختبار على لينكس.
+        </p>
+      </div>
+    </div>
+    <p>
+      القاعدة المعمارية مُنفَّذة آليًا: طبقة العرض يُسمح لها بـ<code>Core</code> و<code>Application</code>
+      فقط. لا <code>Security</code> ولا <code>Infrastructure</code> ولا محرّك خلفي — لأنها من هناك كانت
+      ستقدر أن تتحقّق من مسار أو تكتب ملفًا أو تقرّر سياسة، وكل واحدة من دي قرارات لا تصل إليها شاشة.
+    </p>
+  </section>
+
+  <section>
+    <span class="eyebrow">صراحة</span>
+    <h2>ما لم يُثبت بعد</h2>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>كود XAML لم يمرّ على مترجم قط.</strong> أول بناء على جهازك سيُخرج أخطاء ترجمة على الأرجح — وهذا متوقَّع ومقبول، والأخطاء هي التقرير.</li>
+        <li><strong>لا لقطات حقيقية.</strong> ما فوق رسم تصميمي؛ اللقطات تأتي من <code>scripts\app.ps1 -Screenshots</code>.</li>
+        <li><strong>شاشة الإنشاء لم تُبنَ بعد</strong> كـXAML. منطقها موجود ومُختبَر (قدرات، اعتماديات الخيارات، بناء الطلب)، والشاشة نفسها هي الخطوة التالية.</li>
+        <li><strong>مركز العمليات والسحب والإفلات</strong> موصولان في الهيكل لكن بلا تقدّم حقيقي بعد.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    كل رقم في هذه الصفحة ناتج عن اختبار شُغِّل. حيث لا يوجد قياس، قيل ذلك صراحة.
+  </footer>
+
+</div>

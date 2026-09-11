@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    G.1 FEASIBILITY HARNESS - NOT PRODUCT CODE.
+
+    Deliberately outside src/ so it cannot be mistaken for the NOBA.Archive.ShellBridge project that
+    section J of the Phase 5 plan proposes. This exists to measure whether B1 is viable and is
+    expected to be deleted or rewritten once that question is answered.
+
+    It calls the REAL ShellMenuBuilder over the REAL provider registry, because a harness that
+    measured a trivial function would measure nothing worth knowing: the cost under test is CLR
+    start + assembly load + DI container + provider registry + first menu build.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Phase5.G1</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\NOBA.Archive.Engine\NOBA.Archive.Engine.csproj" />
+  </ItemGroup>
+
+</Project>

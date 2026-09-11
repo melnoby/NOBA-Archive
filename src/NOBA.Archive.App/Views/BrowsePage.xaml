@@ -1,0 +1,374 @@
+<UserControl
+    x:Class="NOBA.Archive.App.Views.BrowsePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AllowDrop="True"
+    DragOver="OnDragOver"
+    Drop="OnDrop">
+
+    <Grid Background="{ThemeResource NobaSurfaceBase}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <!-- 1 archive identity, 2 encoding warning, 3 test verdict, 4 breadcrumb + headers -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Toolbar. Three weights, left to right in logical order: the verb this screen exists for is
+            filled, the ways in are outlined, and what is not implemented is disabled rather than
+            present-and-inert.
+        -->
+        <Grid Grid.Row="0" Padding="16,12,16,8" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button x:Name="ExtractAllButton" Click="OnExtractAll" Style="{StaticResource NobaPrimaryButtonStyle}" />
+                <Button x:Name="OpenButton" Click="OnOpen" Style="{StaticResource NobaSecondaryButtonStyle}" />
+                <Button x:Name="ExtractSelectedButton" Click="OnExtractSelected" Style="{StaticResource NobaSecondaryButtonStyle}" />
+                <Button x:Name="TestButton" Click="OnTest" Style="{StaticResource NobaSecondaryButtonStyle}" IsEnabled="False" />
+            </StackPanel>
+
+            <!--
+                Search sits in the toolbar rather than beside it, with its own icon, shortcut hint and
+                clear affordance. Capped so it cannot stretch into a banner on a wide window.
+            -->
+            <Border
+                x:Name="SearchBorder"
+                Grid.Column="2"
+                MinWidth="240"
+                MaxWidth="320"
+                Height="32"
+                VerticalAlignment="Center"
+                Background="{ThemeResource NobaSurfaceRaised}"
+                BorderBrush="{ThemeResource NobaBorderSubtle}"
+                BorderThickness="1"
+                CornerRadius="{StaticResource NobaRadiusMd}"
+                Padding="8,0">
+                <Grid ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        Text="&#xE721;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="14"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource NobaTextSecondary}" />
+
+                    <TextBox
+                        x:Name="SearchBox"
+                        Grid.Column="1"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        VerticalAlignment="Center"
+                        TextChanged="OnSearchChanged" />
+
+                    <TextBlock
+                        x:Name="SearchShortcut"
+                        Grid.Column="2"
+                        Text="Ctrl+F"
+                        FlowDirection="LeftToRight"
+                        FontSize="{StaticResource NobaTypeCaptionSize}"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource NobaTextDisabled}" />
+
+                    <Button
+                        x:Name="ClearSearchButton"
+                        Grid.Column="3"
+                        Click="OnClearSearch"
+                        Style="{StaticResource NobaSubtleButtonStyle}"
+                        Visibility="Collapsed"
+                        Content="&#xE711;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="12" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!--
+            Archive identity. Until this existed the window never said what was open, which is the first
+            question a person asks of a file manager.
+        -->
+        <Border
+            x:Name="ArchiveHeader"
+            Grid.Row="1"
+            Visibility="Collapsed"
+            Padding="16,4,16,12">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    Grid.Column="0"
+                    Width="36"
+                    Height="36"
+                    VerticalAlignment="Top"
+                    CornerRadius="{StaticResource NobaRadiusMd}"
+                    Background="{ThemeResource NobaAccentSubtle}">
+                    <TextBlock
+                        Text="&#xE7B8;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource NobaAccentDefault}" />
+                </Border>
+
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock
+                            x:Name="ArchiveName"
+                            FontSize="{StaticResource NobaTypeSubtitleSize}"
+                            FontWeight="SemiBold"
+                            TextTrimming="CharacterEllipsis"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource NobaTextPrimary}" />
+
+                        <Border
+                            CornerRadius="{StaticResource NobaRadiusSm}"
+                            Padding="6,1"
+                            VerticalAlignment="Center"
+                            Background="{ThemeResource NobaAccentSubtle}">
+                            <TextBlock
+                                x:Name="FormatBadge"
+                                FlowDirection="LeftToRight"
+                                FontSize="{StaticResource NobaTypeCaptionSize}"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource NobaAccentDefault}" />
+                        </Border>
+                    </StackPanel>
+
+                    <!--
+                        A host, not a text block. The summary arrives from Presentation as fragments,
+                        and each fragment becomes its own text block so that a number and an Arabic word
+                        never share one. This panel has no FlowDirection of its own: it inherits the
+                        window's, so the fragments read in the UI language's order while each is shaped
+                        by its own content. Nothing here decides direction - SummaryView does, from what
+                        the fragment declares.
+                    -->
+                    <StackPanel
+                        x:Name="ArchiveSummary"
+                        Orientation="Horizontal"
+                        Spacing="5" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- A guessed entry-name encoding is stated, never presented as a fact. -->
+        <InfoBar
+            x:Name="EncodingWarning"
+            Grid.Row="2"
+            Margin="16,0,16,8"
+            IsOpen="False"
+            IsClosable="False"
+            Severity="Warning" />
+
+        <!--
+            The test verdict. Not a dialog: the result is something a person reads while looking at the
+            archive it describes, and a modal would hide exactly that. Collapsed until asked for, and
+            dismissible, because a panel with no way out is a panel that eats the window.
+
+            The headline, the tone strip and the chip on every finding all say the same thing three
+            ways - word, position and colour - so nothing here depends on colour alone.
+        -->
+        <Border
+            x:Name="TestPanel"
+            Grid.Row="3"
+            Margin="16,0,16,10"
+            Visibility="Collapsed"
+            CornerRadius="{StaticResource NobaRadiusMd}"
+            BorderThickness="1"
+            Background="{ThemeResource NobaSurfaceRaised}"
+            BorderBrush="{ThemeResource NobaBorderSubtle}">
+            <StackPanel>
+                <Grid x:Name="TestHead" Padding="14,12" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        x:Name="TestToneMark"
+                        Grid.Column="0"
+                        Width="30"
+                        Height="30"
+                        VerticalAlignment="Top"
+                        CornerRadius="15">
+                        <TextBlock
+                            x:Name="TestToneGlyph"
+                            FontFamily="{StaticResource NobaIconFont}"
+                            FontSize="15"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="3">
+                        <TextBlock
+                            x:Name="TestHeadline"
+                            FontSize="{StaticResource NobaTypeBodySize}"
+                            FontWeight="SemiBold"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource NobaTextPrimary}" />
+
+                        <!-- Fragments, not a sentence: see SummaryView. -->
+                        <StackPanel
+                            x:Name="TestDetail"
+                            Orientation="Horizontal"
+                            Spacing="5" />
+                    </StackPanel>
+
+                    <Button
+                        x:Name="TestDismissButton"
+                        Grid.Column="2"
+                        Click="OnDismissTest"
+                        VerticalAlignment="Top"
+                        Style="{StaticResource NobaSubtleButtonStyle}"
+                        Content="&#xE711;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="12" />
+                </Grid>
+
+                <!-- Findings, built in code so a path and a message never share a text run. -->
+                <ItemsControl x:Name="TestFindings" />
+            </StackPanel>
+        </Border>
+
+        <!--
+            Breadcrumb and column headers, in one band above the list so the table starts with a rule
+            rather than floating in the surface.
+        -->
+        <Border
+            x:Name="ListChrome"
+            Grid.Row="4"
+            Visibility="Collapsed"
+            Background="{ThemeResource NobaSurfaceRaised}"
+            BorderBrush="{ThemeResource NobaBorderSubtle}"
+            BorderThickness="0,1,0,1">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="4" Padding="16,8" VerticalAlignment="Center">
+                    <Button
+                        x:Name="UpButton"
+                        Click="OnGoUp"
+                        Style="{StaticResource NobaSubtleButtonStyle}"
+                        Content="&#xE74A;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="13" />
+                    <Button
+                        x:Name="HomeButton"
+                        Click="OnGoHome"
+                        Style="{StaticResource NobaSubtleButtonStyle}"
+                        Content="&#xE80F;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="13" />
+                    <Border
+                        Width="1"
+                        Height="16"
+                        Margin="4,0"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource NobaBorderSubtle}" />
+                    <ItemsControl x:Name="Breadcrumbs" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Built in code by the same helper that builds a row, so the columns cannot drift. -->
+                <Border
+                    x:Name="ColumnHeaderHost"
+                    Padding="16,6,16,6"
+                    Background="{ThemeResource NobaSurfaceSunken}"
+                    BorderBrush="{ThemeResource NobaBorderSubtle}"
+                    BorderThickness="0,1,0,1" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="5">
+            <ListView
+                x:Name="FileList"
+                SelectionMode="Extended"
+                SelectionChanged="OnSelectionChanged"
+                DoubleTapped="OnRowActivated"
+                Padding="8,4"
+                Background="Transparent"
+                ItemContainerStyle="{StaticResource NobaFileRowStyle}"
+                ScrollViewer.HorizontalScrollMode="Auto"
+                ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+
+            <!--
+                Empty state. An icon at a size that reads as illustration, one sentence of what this
+                screen is for, and the primary action inside the empty area rather than only in a
+                toolbar the reader has not looked at yet.
+            -->
+            <StackPanel
+                x:Name="EmptyState"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="380"
+                Spacing="12">
+                <Border
+                    Width="64"
+                    Height="64"
+                    HorizontalAlignment="Center"
+                    CornerRadius="{StaticResource NobaRadiusLg}"
+                    Background="{ThemeResource NobaSurfaceSunken}">
+                    <TextBlock
+                        Text="&#xE7B8;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="30"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource NobaTextSecondary}" />
+                </Border>
+
+                <TextBlock
+                    x:Name="EmptyTitle"
+                    FontSize="{StaticResource NobaTypeTitleSize}"
+                    FontWeight="SemiBold"
+                    TextAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource NobaTextPrimary}" />
+
+                <TextBlock
+                    x:Name="EmptyBody"
+                    FontSize="{StaticResource NobaTypeBodySize}"
+                    TextWrapping="Wrap"
+                    TextAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource NobaTextSecondary}" />
+
+                <Button
+                    x:Name="EmptyOpenButton"
+                    Click="OnOpen"
+                    HorizontalAlignment="Center"
+                    Margin="0,4,0,0"
+                    Style="{StaticResource NobaPrimaryButtonStyle}" />
+
+                <TextBlock
+                    x:Name="EmptyDropHint"
+                    FontSize="{StaticResource NobaTypeCaptionSize}"
+                    TextAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource NobaTextDisabled}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

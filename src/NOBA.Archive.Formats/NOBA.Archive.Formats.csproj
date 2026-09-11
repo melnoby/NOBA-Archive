@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.Formats</RootNamespace>
+    <Description>Archive providers and format detection. The only project permitted to reference an archive library.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Security\NOBA.Archive.Security.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The legacy code-page tables are an implementation detail with no public surface, but they are
+         exactly the kind of data that must be tested against known byte/character pairs rather than
+         against the generator that produced them. -->
+    <InternalsVisibleTo Include="NOBA.Archive.Integration.Tests" />
+  </ItemGroup>
+</Project>

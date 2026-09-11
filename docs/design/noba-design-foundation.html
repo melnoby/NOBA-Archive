@@ -1,0 +1,699 @@
+<title>NOBA Archive Design Foundation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   NOBA Archive — design foundation
+   Dark-first: the product's chrome is deep navy, so the bare
+   :root carries the dark palette and light is the override.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --ground: #0B1020;
+  --surface: #141B2E;
+  --raised: #1C2540;
+  --line: #262F4A;
+  --line-strong: #384267;
+
+  --ink: #E9EDF7;
+  --ink-muted: #97A1BA;
+  --ink-faint: #6B7591;
+
+  --accent: #3D7BFF;
+  --accent-text: #7BA5FF;
+  --accent-ground: #16213F;
+
+  --blocked: #FF6B6F;
+  --blocked-ground: #2E1418;
+  --allowed: #4ECB8F;
+  --allowed-ground: #0F2620;
+  --caution: #F0B03C;
+  --caution-ground: #2B2010;
+
+  --shadow: none;
+  --scheme: dark;
+
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  --r-control: 4px; --r-card: 8px; --r-panel: 12px; --r-pill: 999px;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --arabic: "IBM Plex Sans Arabic", "Noto Sans Arabic", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #F6F8FC;
+    --surface: #FFFFFF;
+    --raised: #FFFFFF;
+    --line: #DFE4F0;
+    --line-strong: #C3CBDE;
+
+    --ink: #0F1526;
+    --ink-muted: #55607C;
+    --ink-faint: #7A849E;
+
+    --accent: #1D4FD8;
+    --accent-text: #1D4FD8;
+    --accent-ground: #EAF0FF;
+
+    --blocked: #C7362F;
+    --blocked-ground: #FDECEA;
+    --allowed: #14714A;
+    --allowed-ground: #E7F6EE;
+    --caution: #8A5B00;
+    --caution-ground: #FCF2DF;
+
+    --shadow: 0 1px 2px rgba(15, 21, 38, .06), 0 8px 24px rgba(15, 21, 38, .06);
+    --scheme: light;
+  }
+}
+
+:root[data-theme="light"] {
+  --ground: #F6F8FC;
+  --surface: #FFFFFF;
+  --raised: #FFFFFF;
+  --line: #DFE4F0;
+  --line-strong: #C3CBDE;
+
+  --ink: #0F1526;
+  --ink-muted: #55607C;
+  --ink-faint: #7A849E;
+
+  --accent: #1D4FD8;
+  --accent-text: #1D4FD8;
+  --accent-ground: #EAF0FF;
+
+  --blocked: #C7362F;
+  --blocked-ground: #FDECEA;
+  --allowed: #14714A;
+  --allowed-ground: #E7F6EE;
+  --caution: #8A5B00;
+  --caution-ground: #FCF2DF;
+
+  --shadow: 0 1px 2px rgba(15, 21, 38, .06), 0 8px 24px rgba(15, 21, 38, .06);
+  --scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1060px;
+  margin-inline: auto;
+  padding-inline: var(--s5);
+  padding-block: var(--s7) var(--s8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s8);
+}
+
+/* ── masthead ─────────────────────────────────────────────── */
+.masthead { display: flex; flex-direction: column; gap: var(--s4); }
+
+.wordmark { display: flex; align-items: center; gap: var(--s3); }
+
+.glyph {
+  width: 40px; height: 40px; flex: none;
+  border-radius: var(--r-card);
+  background: linear-gradient(145deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #7BA5FF));
+  display: grid; place-items: center;
+  color: #fff; font-weight: 700; font-size: 22px; line-height: 1;
+  font-family: var(--sans);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 38px);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+
+.standfirst {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-muted);
+  font-size: 17px;
+}
+
+.controls { display: flex; flex-wrap: wrap; gap: var(--s2); margin-block-start: var(--s2); }
+
+button.toggle {
+  font: 500 13px/1 var(--sans);
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: var(--s2) var(--s4);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+button.toggle:hover { color: var(--ink); border-color: var(--line-strong); }
+button.toggle[aria-pressed="true"] {
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--accent-ground);
+}
+button.toggle:focus-visible,
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── sections ─────────────────────────────────────────────── */
+section { display: flex; flex-direction: column; gap: var(--s4); }
+
+.eyebrow {
+  font: 500 11px/1 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+p { margin: 0; max-width: 68ch; color: var(--ink-muted); }
+p strong { color: var(--ink); font-weight: 600; }
+code {
+  font: 400 .89em/1.5 var(--mono);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  padding: 1px 5px;
+  color: var(--ink);
+  /* Paths and identifiers are LTR data even inside Arabic prose. */
+  direction: ltr;
+  unicode-bidi: embed;
+  display: inline-block;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow);
+  padding: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* ── colour ───────────────────────────────────────────────── */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--s3); }
+
+.swatch {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--raised);
+}
+.swatch .chip { height: 56px; border-block-end: 1px solid var(--line); }
+.swatch .meta { padding: var(--s2) var(--s3) var(--s3); display: flex; flex-direction: column; gap: 2px; }
+.swatch .name { font: 500 12px/1.4 var(--mono); color: var(--ink); }
+.swatch .role { font-size: 11px; color: var(--ink-faint); line-height: 1.4; }
+
+/* ── type specimen ────────────────────────────────────────── */
+.specimen { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s5); }
+.specimen > div { display: flex; flex-direction: column; gap: var(--s2); }
+.sample-latin { font-family: var(--sans); font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+.sample-arabic { font-family: var(--arabic); font-size: 26px; font-weight: 600; line-height: 1.9; }
+.sample-mono { font-family: var(--mono); font-size: 15px; }
+
+.scale { display: flex; flex-direction: column; gap: var(--s2); }
+.scale-row { display: flex; align-items: baseline; gap: var(--s4); border-block-end: 1px dashed var(--line); padding-block-end: var(--s2); }
+.scale-row .tag { font: 400 11px/1 var(--mono); color: var(--ink-faint); min-width: 92px; flex: none; }
+.scale-row .demo { color: var(--ink); }
+
+/* ── rules table ──────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-card); }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; }
+th, td { text-align: start; padding: var(--s3) var(--s4); border-block-end: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); background: var(--raised); }
+tbody tr:last-child td { border-block-end: none; }
+td:first-child { color: var(--ink); font-weight: 500; }
+td { color: var(--ink-muted); }
+.num { font-variant-numeric: tabular-nums; font-family: var(--mono); }
+
+/* ── mirror / no-mirror callouts ──────────────────────────── */
+.verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s4); }
+.verdict { border-radius: var(--r-card); padding: var(--s4); display: flex; flex-direction: column; gap: var(--s2); border: 1px solid var(--line); }
+.verdict.does { background: var(--allowed-ground); border-color: color-mix(in oklab, var(--allowed) 35%, transparent); }
+.verdict.does-not { background: var(--blocked-ground); border-color: color-mix(in oklab, var(--blocked) 35%, transparent); }
+.verdict h3 { display: flex; align-items: center; gap: var(--s2); font-size: 13px; }
+.verdict.does h3 { color: var(--allowed); }
+.verdict.does-not h3 { color: var(--blocked); }
+.verdict ul { margin: 0; padding-inline-start: 1.15em; color: var(--ink-muted); font-size: 14px; display: flex; flex-direction: column; gap: var(--s1); }
+
+/* ── the applied component ────────────────────────────────── */
+.mirror-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: var(--s4); }
+
+.panel {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.panel-head {
+  padding: var(--s3) var(--s4);
+  border-block-end: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  font-weight: 600; font-size: 14px;
+}
+.panel-head .dirtag { font: 400 10px/1 var(--mono); color: var(--ink-faint); letter-spacing: .1em; }
+.panel[dir="rtl"] .panel-head, .panel[dir="rtl"] .row, .panel[dir="rtl"] .panel-foot { font-family: var(--arabic); }
+
+.row {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-block-end: 1px solid var(--line);
+  font-size: 13px;
+}
+.row:last-of-type { border-block-end: none; }
+.row .icon { width: 18px; height: 18px; flex: none; border-radius: var(--r-pill); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.row.blocked .icon { background: var(--blocked-ground); color: var(--blocked); border: 1px solid var(--blocked); }
+.row.allowed .icon { background: var(--allowed-ground); color: var(--allowed); border: 1px solid var(--allowed); }
+.row .path { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; direction: ltr; unicode-bidi: embed; text-align: start; }
+.row .verdict-tag { font-size: 11px; font-weight: 600; flex: none; }
+.row.blocked .verdict-tag { color: var(--blocked); }
+.row.allowed .verdict-tag { color: var(--allowed); }
+
+.panel-foot {
+  padding: var(--s3) var(--s4);
+  border-block-start: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  font-size: 12px; color: var(--ink-muted);
+}
+.btn-primary {
+  font: 600 12px/1 var(--sans);
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--r-control);
+  padding: var(--s2) var(--s4); cursor: pointer;
+}
+.panel[dir="rtl"] .btn-primary { font-family: var(--arabic); }
+
+/* ── progress: the classic mirroring trap ─────────────────── */
+.progress-demo { display: flex; flex-direction: column; gap: var(--s3); }
+.track { height: 6px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
+.track > i { display: block; height: 100%; width: 62%; background: var(--accent); border-radius: var(--r-pill); }
+
+/* ── token export ─────────────────────────────────────────── */
+pre {
+  margin: 0;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--s4);
+  overflow-x: auto;
+  font: 400 12.5px/1.7 var(--mono);
+  color: var(--ink);
+  direction: ltr;
+  text-align: left;
+}
+pre .c { color: var(--ink-faint); }
+
+footer { color: var(--ink-faint); font-size: 13px; border-block-start: 1px solid var(--line); padding-block-start: var(--s4); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="wordmark">
+      <div class="glyph" aria-hidden="true">N</div>
+      <div>
+        <h1>NOBA Archive Design Foundation</h1>
+      </div>
+    </div>
+    <p class="standfirst">
+      The minimum system the first real interface needs: tokens, bidirectional rules, and the
+      accessibility floor. Not a style guide for a product that doesn't exist yet — the small set of
+      decisions that would be expensive to reverse once a WinUI surface is built on top of them.
+    </p>
+    <div class="controls">
+      <button class="toggle" id="theme-btn" aria-pressed="false">Force light</button>
+      <button class="toggle" id="dir-btn" aria-pressed="false">Preview in Arabic / RTL</button>
+    </div>
+  </header>
+
+  <section>
+    <span class="eyebrow">Position</span>
+    <h2>Arabic is the design constraint, not a translation pass</h2>
+    <p>
+      7-Zip and WinRAR both render Arabic badly — mirrored layouts that leak, filenames that break at the
+      wrong boundary, dialogs that assume a left edge. That is the gap this product is aimed at, which
+      means right-to-left cannot be retrofitted after the English UI is finished. Every token below is
+      declared in <strong>logical</strong> terms (<code>inline-start</code>, not <code>left</code>) so
+      mirroring is a property of the system rather than a second stylesheet somebody has to maintain.
+    </p>
+    <p>
+      The engine already carries the matching half of this: a ZIP whose entry names are in a legacy code
+      page is decoded, reported, and overridable, so an Arabic filename from a 2009 archive survives all
+      the way to the screen. A design system that mirrors correctly and then shows
+      <code>?????.txt</code> would have solved the easier half of the problem.
+    </p>
+  </section>
+
+  <section>
+    <span class="eyebrow">Color</span>
+    <h2>Surfaces, ink, accent, verdict</h2>
+    <p>
+      Neutrals are biased toward the accent's hue — a navy-grey, never a pure grey. Elevation in the dark
+      theme comes from <strong>lighter surfaces</strong>, not shadows; shadows only appear in the light
+      theme, where they read.
+    </p>
+
+    <div class="card">
+      <h3>Surface &amp; ink</h3>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background: var(--ground)"></div><div class="meta"><span class="name">--ground</span><span class="role">App background</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--surface)"></div><div class="meta"><span class="name">--surface</span><span class="role">Panels, cards</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--raised)"></div><div class="meta"><span class="name">--raised</span><span class="role">Rows, inputs, code</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--line)"></div><div class="meta"><span class="name">--line</span><span class="role">Dividers, borders</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--ink)"></div><div class="meta"><span class="name">--ink</span><span class="role">Primary text</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--ink-muted)"></div><div class="meta"><span class="name">--ink-muted</span><span class="role">Secondary text</span></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Accent &amp; verdict</h3>
+      <p style="font-size:14px">
+        The accent is identity; the verdict colors are meaning. They never swap roles — a primary button
+        is never green because the action is safe, and a blocked row is never blue because blue is the
+        brand.
+      </p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background: var(--accent)"></div><div class="meta"><span class="name">--accent</span><span class="role">NOBA blue — identity, primary action, focus</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--blocked)"></div><div class="meta"><span class="name">--blocked</span><span class="role">Refused by policy, integrity failure</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--allowed)"></div><div class="meta"><span class="name">--allowed</span><span class="role">Passed validation, verified</span></div></div>
+        <div class="swatch"><div class="chip" style="background: var(--caution)"></div><div class="meta"><span class="name">--caution</span><span class="role">Encrypted, unverifiable, guessed</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Type</span>
+    <h2>One superfamily across both scripts</h2>
+    <p>
+      <strong>IBM Plex Sans</strong> and <strong>IBM Plex Sans Arabic</strong> are drawn as one family, so
+      Latin and Arabic share weight, proportion and voice instead of being two typefaces stapled together.
+      <strong>IBM Plex Mono</strong> carries paths, sizes, hashes and code pages — the data an archive
+      manager is mostly made of.
+    </p>
+
+    <div class="card">
+      <div class="specimen">
+        <div>
+          <span class="eyebrow">Latin — IBM Plex Sans</span>
+          <div class="sample-latin">Extract with security</div>
+          <span class="role" style="color:var(--ink-faint);font-size:12px">400 · 500 · 600 · 700</span>
+        </div>
+        <div>
+          <span class="eyebrow">Arabic — IBM Plex Sans Arabic</span>
+          <div class="sample-arabic" dir="rtl">استخراج آمن للأرشيف</div>
+          <span class="role" style="color:var(--ink-faint);font-size:12px">400 · 500 · 600 · 700</span>
+        </div>
+        <div>
+          <span class="eyebrow">Data — IBM Plex Mono</span>
+          <div class="sample-mono">9C0D12EF · 620.35 MB · cp1256</div>
+          <span class="role" style="color:var(--ink-faint);font-size:12px">tabular-nums always on</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Scale</h3>
+      <div class="scale">
+        <div class="scale-row"><span class="tag">display / 34</span><span class="demo" style="font-size:34px;font-weight:600;letter-spacing:-.02em">Project Files.7z</span></div>
+        <div class="scale-row"><span class="tag">title / 24</span><span class="demo" style="font-size:24px;font-weight:600">Archive contents</span></div>
+        <div class="scale-row"><span class="tag">subtitle / 17</span><span class="demo" style="font-size:17px">24 items · 620.35 MB</span></div>
+        <div class="scale-row"><span class="tag">body / 15</span><span class="demo" style="font-size:15px">Two entries were refused by the security policy.</span></div>
+        <div class="scale-row"><span class="tag">dense / 13</span><span class="demo" style="font-size:13px">presentation.pptx · modified 18/08/2025 09:39</span></div>
+        <div class="scale-row"><span class="tag">label / 11 mono</span><span class="demo" style="font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase">Compressed</span></div>
+      </div>
+      <p style="font-size:14px">
+        Arabic needs more vertical room than Latin at the same size: line-height goes to
+        <strong>1.9</strong> against Latin's 1.6, and ascender-heavy stacking makes tight leading
+        illegible rather than merely tight.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Bidirectionality</span>
+    <h2>What mirrors, and what must not</h2>
+    <p>
+      Mirroring everything is the common failure. Direction applies to <em>reading order</em>, not to
+      things that carry their own intrinsic orientation or that are not language at all.
+    </p>
+
+    <div class="verdicts">
+      <div class="verdict does">
+        <h3><span aria-hidden="true">→←</span> Mirrors</h3>
+        <ul>
+          <li>Layout order, alignment, indentation</li>
+          <li>Navigation and tree disclosure arrows</li>
+          <li>Back / forward, breadcrumb separators</li>
+          <li>Icons that imply direction of travel</li>
+          <li>Table column order</li>
+          <li>Padding, margin, border via logical properties</li>
+        </ul>
+      </div>
+      <div class="verdict does-not">
+        <h3><span aria-hidden="true">✕</span> Never mirrors</h3>
+        <ul>
+          <li><strong>File paths</strong> — <code>C:\Users\m\Desktop</code> is not prose</li>
+          <li><strong>Progress fill</strong> — grows with time, not with script</li>
+          <li>Checkmarks, warning triangles, padlocks</li>
+          <li>Version strings, CRC and hex values</li>
+          <li>Media transport controls</li>
+          <li>Company logos and product marks</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Paths inside Arabic prose</h3>
+      <p style="font-size:14px">
+        A Windows path dropped into an Arabic sentence will reorder itself into nonsense unless it is
+        isolated. Every path, identifier and numeric literal gets
+        <code>direction: ltr; unicode-bidi: isolate</code> — in WinUI, the equivalent is an explicit
+        <code>FlowDirection.LeftToRight</code> on the run, not on the panel.
+      </p>
+      <div style="background:var(--raised);border:1px solid var(--line);border-radius:var(--r-card);padding:var(--s4)">
+        <div dir="rtl" style="font-family:var(--arabic);font-size:15px;line-height:2">
+          تم رفض المدخل <code>..\..\Windows\System32\evil.exe</code> لأنه يحاول الخروج من مجلد الوجهة.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Progress does not flip</h3>
+      <p style="font-size:14px">
+        A 62% extraction is 62% done in both directions. The bar fills from the same physical edge
+        because it represents elapsed work, not a sentence — and a user watching it flip direction when
+        they change language will read it as a bug.
+      </p>
+      <div class="progress-demo">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink-muted);margin-block-end:var(--s2)">
+            <span>Project Files.zip</span><span class="num">62%</span>
+          </div>
+          <div class="track" role="img" aria-label="62 percent complete"><i></i></div>
+        </div>
+        <div dir="rtl" style="font-family:var(--arabic)">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink-muted);margin-block-end:var(--s2)">
+            <span>جارٍ الاستخراج</span><span class="num">62%</span>
+          </div>
+          <div class="track" role="img" aria-label="62 بالمئة"><i></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Numerals</h3>
+      <p style="font-size:14px">
+        Arabic-script locales split on digit shape, and guessing wrong looks careless in both directions.
+        NOBA Archive uses <strong>Western digits (0–9) everywhere by default</strong>, including Arabic
+        UI, because sizes, checksums and version numbers are read alongside data the system produces.
+        Arabic-Indic digits (٠–٩) are a per-user setting, and never apply to
+        <code>--name-encoding 1256</code>, CRC values, or anything copyable.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Space · radius · elevation</span>
+    <h2>Measurable rules</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Token</th><th>Value</th><th>Applied to</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>--s1 … --s8</td><td class="num">4 · 8 · 12 · 16 · 24 · 32 · 48 · 64</td><td>All spacing. Nothing off-scale; a 14px gap means somebody guessed.</td></tr>
+          <tr><td>--r-control</td><td class="num">4px</td><td>Buttons, inputs, chips</td></tr>
+          <tr><td>--r-card</td><td class="num">8px</td><td>Cards, list containers, swatches</td></tr>
+          <tr><td>--r-panel</td><td class="num">12px</td><td>Dialogs, top-level panels</td></tr>
+          <tr><td>--r-pill</td><td class="num">999px</td><td>Status pills, toggles only</td></tr>
+          <tr><td>elevation — dark</td><td>surface step</td><td><code>--surface</code> → <code>--raised</code>. No shadows: they vanish on a near-black ground.</td></tr>
+          <tr><td>elevation — light</td><td>shadow + hairline</td><td>Shadow carries depth; the border keeps edges crisp against white.</td></tr>
+          <tr><td>row height</td><td class="num">32px dense · 40px default</td><td>An archive listing is a data grid. Dense is the default for file lists.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Accessibility</span>
+    <h2>The floor, not the aspiration</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rule</th><th>Requirement</th></tr></thead>
+        <tbody>
+          <tr><td>Text contrast</td><td>4.5:1 body, 3:1 for text at 24px+ or 19px bold — in <em>both</em> themes, checked against the surface actually behind it.</td></tr>
+          <tr><td>Never colour alone</td><td>Blocked and allowed carry an icon and a word. A red row and a green row are identical to roughly 1 in 12 men.</td></tr>
+          <tr><td>Focus</td><td>2px <code>--accent</code> ring, 2px offset, visible on every focusable control. Never removed for aesthetics.</td></tr>
+          <tr><td>Target size</td><td>24×24 CSS px minimum for any pointer target, including row-level icon buttons.</td></tr>
+          <tr><td>Motion</td><td><code>prefers-reduced-motion</code> disables transitions and progress animation; the progress <em>number</em> keeps updating.</td></tr>
+          <tr><td>Keyboard</td><td>The whole extract flow — select, choose destination, review refusals, confirm — completes without a pointer.</td></tr>
+          <tr><td>Screen readers</td><td>A refused entry announces the reason, not just "blocked". The reason is the security value.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Applied</span>
+    <h2>Extract with security, both directions</h2>
+    <p>
+      The product's most distinctive screen, and the one that most needs to survive mirroring: paths stay
+      left-to-right, verdicts stay legible, and the layout flips around them. Nothing below is a mockup
+      convention — the refusal reasons are the ones the engine actually emits.
+    </p>
+    <div class="mirror-pair">
+
+      <div class="panel" dir="ltr">
+        <div class="panel-head"><span>Extract with security</span><span class="dirtag">LTR</span></div>
+        <div class="row blocked"><span class="icon" aria-hidden="true">✕</span><span class="path">..\..\Windows\System32\evil.exe</span><span class="verdict-tag">Blocked</span></div>
+        <div class="row blocked"><span class="icon" aria-hidden="true">✕</span><span class="path">readme.txt:Zone.Identifier</span><span class="verdict-tag">Blocked</span></div>
+        <div class="row allowed"><span class="icon" aria-hidden="true">✓</span><span class="path">docs/تقرير.txt</span><span class="verdict-tag">Allowed</span></div>
+        <div class="row allowed"><span class="icon" aria-hidden="true">✓</span><span class="path">assets/presentation.pptx</span><span class="verdict-tag">Allowed</span></div>
+        <div class="panel-foot"><span>2 blocked · 2 allowed</span><button class="btn-primary">Extract</button></div>
+      </div>
+
+      <div class="panel" dir="rtl">
+        <div class="panel-head"><span>استخراج آمن</span><span class="dirtag">RTL</span></div>
+        <div class="row blocked"><span class="icon" aria-hidden="true">✕</span><span class="path">..\..\Windows\System32\evil.exe</span><span class="verdict-tag">مرفوض</span></div>
+        <div class="row blocked"><span class="icon" aria-hidden="true">✕</span><span class="path">readme.txt:Zone.Identifier</span><span class="verdict-tag">مرفوض</span></div>
+        <div class="row allowed"><span class="icon" aria-hidden="true">✓</span><span class="path">docs/تقرير.txt</span><span class="verdict-tag">مسموح</span></div>
+        <div class="row allowed"><span class="icon" aria-hidden="true">✓</span><span class="path">assets/presentation.pptx</span><span class="verdict-tag">مسموح</span></div>
+        <div class="panel-foot"><span>٢ مرفوض · ٢ مسموح</span><button class="btn-primary">استخراج</button></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Export</span>
+    <h2>Tokens</h2>
+    <p>
+      Copy into the WinUI resource dictionary as <code>StaticResource</code> entries, or into any web
+      surface as-is. The names are the contract — a component referring to
+      <code>#3D7BFF</code> instead of <code>--accent</code> has left the system.
+    </p>
+    <pre><span class="c">/* dark — the default; NOBA Archive's chrome is deep navy */</span>
+--ground: #0B1020;   --surface: #141B2E;  --raised: #1C2540;
+--line:   #262F4A;   --line-strong: #384267;
+--ink:    #E9EDF7;   --ink-muted: #97A1BA; --ink-faint: #6B7591;
+--accent: #3D7BFF;   --accent-text: #7BA5FF; --accent-ground: #16213F;
+--blocked:#FF6B6F;   --allowed: #4ECB8F;   --caution: #F0B03C;
+
+<span class="c">/* light */</span>
+--ground: #F6F8FC;   --surface: #FFFFFF;  --raised: #FFFFFF;
+--line:   #DFE4F0;   --line-strong: #C3CBDE;
+--ink:    #0F1526;   --ink-muted: #55607C; --ink-faint: #7A849E;
+--accent: #1D4FD8;   --accent-text: #1D4FD8; --accent-ground: #EAF0FF;
+--blocked:#C7362F;   --allowed: #14714A;   --caution: #8A5B00;
+
+<span class="c">/* space · radius */</span>
+--s1..--s8: 4 8 12 16 24 32 48 64px;
+--r-control: 4px; --r-card: 8px; --r-panel: 12px; --r-pill: 999px;
+
+<span class="c">/* type */</span>
+--sans:   "IBM Plex Sans";
+--arabic: "IBM Plex Sans Arabic";   <span class="c">/* line-height 1.9, not 1.6 */</span>
+--mono:   "IBM Plex Mono";          <span class="c">/* tabular-nums always */</span></pre>
+  </section>
+
+  <footer>
+    Foundation only — deliberately not a component library. It exists now so that the first real UI
+    surface has something to be validated against, rather than establishing conventions by accident.
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('theme-btn');
+  var dirBtn = document.getElementById('dir-btn');
+
+  themeBtn.addEventListener('click', function () {
+    var forced = root.getAttribute('data-theme') === 'light';
+    if (forced) {
+      root.removeAttribute('data-theme');
+      themeBtn.setAttribute('aria-pressed', 'false');
+      themeBtn.textContent = 'Force light';
+    } else {
+      root.setAttribute('data-theme', 'light');
+      themeBtn.setAttribute('aria-pressed', 'true');
+      themeBtn.textContent = 'Back to your theme';
+    }
+  });
+
+  dirBtn.addEventListener('click', function () {
+    var page = document.querySelector('.page');
+    var rtl = page.getAttribute('dir') === 'rtl';
+    if (rtl) {
+      page.removeAttribute('dir');
+      page.style.fontFamily = '';
+      dirBtn.setAttribute('aria-pressed', 'false');
+      dirBtn.textContent = 'Preview in Arabic / RTL';
+    } else {
+      // Flipping the whole document is the point: everything built on logical
+      // properties mirrors, and everything that must not mirror stays put.
+      page.setAttribute('dir', 'rtl');
+      page.style.fontFamily = 'var(--arabic)';
+      dirBtn.setAttribute('aria-pressed', 'true');
+      dirBtn.textContent = 'Back to LTR';
+    }
+  });
+})();
+</script>

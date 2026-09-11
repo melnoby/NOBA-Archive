@@ -1,0 +1,66 @@
+# NOBA Archive - line endings and what git may not touch.
+#
+# WHY eol=lf ON A WINDOWS-ONLY PROJECT. This project verifies work by SHA256: build payloads,
+# scripts copied to the test VM, harness files checked against a hash before they are trusted. Git's
+# usual Windows behaviour - store LF, check out CRLF - changes every one of those hashes at checkout,
+# so a file that is byte-identical on two machines reports two different hashes and a real
+# difference becomes indistinguishable from a checkout artefact.
+#
+# Nothing here needs CRLF. Windows PowerShell 5.1, MSVC, MSBuild and the .NET SDK all read LF
+# without complaint. The encoding rule that DOES matter is different and unaffected by this file:
+# pure ASCII, or a UTF-8 BOM - because 5.1 decodes a BOM-less file as the machine's ANSI codepage,
+# where bytes 0x91-0x94 are quote characters that silently open strings.
+* text=auto eol=lf
+
+# -------------------------------------------------------------------------------------------------
+# Binary: never normalised, never diffed as text
+# -------------------------------------------------------------------------------------------------
+# An archive or an image that git "fixes" the line endings of is a corrupted file, and for an
+# archive manager's fixtures the corruption would show up as a test failure nobody can reproduce.
+*.7z      binary
+*.zip     binary
+*.rar     binary
+*.gz      binary
+*.bz2     binary
+*.xz      binary
+*.tar     binary
+*.cab     binary
+*.msix    binary
+*.appx    binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.pdf     binary
+*.docx    binary
+*.xlsx    binary
+*.pptx    binary
+*.dll     binary
+*.exe     binary
+*.pdb     binary
+*.lib     binary
+*.cer     binary
+*.pfx     binary
+*.snk     binary
+
+# -------------------------------------------------------------------------------------------------
+# Language hints for diffs and GitHub's statistics
+# -------------------------------------------------------------------------------------------------
+*.cs      text diff=csharp
+*.cpp     text diff=cpp
+*.h       text diff=cpp
+*.ps1     text
+*.psm1    text
+*.xaml    text
+*.csproj  text
+*.vcxproj text
+*.props   text
+*.targets text
+*.md      text
+*.json    text
+*.def     text
+
+# Generated or vendored content that should not count as hand-written code in the language summary.
+spikes/**       linguist-vendored
+fixtures/**     linguist-documentation

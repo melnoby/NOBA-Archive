@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>noba-ar</AssemblyName>
+        <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.Cli</RootNamespace>
+    <Description>noba-ar.exe - a thin CLI host over the NOBA Archive engine. Contains no archive logic.</Description>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Engine\NOBA.Archive.Engine.csproj" />
+  </ItemGroup>
+</Project>

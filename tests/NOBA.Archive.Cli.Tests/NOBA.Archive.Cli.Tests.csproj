@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.Cli.Tests</RootNamespace>
+    <NobaTestProject>true</NobaTestProject>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.TestKit\NOBA.Archive.TestKit.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Cli\NOBA.Archive.Cli.csproj" />
+  </ItemGroup>
+</Project>

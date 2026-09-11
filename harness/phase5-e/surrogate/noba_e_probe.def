@@ -1,0 +1,4 @@
+LIBRARY noba_e_probe
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE

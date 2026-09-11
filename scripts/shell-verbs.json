@@ -1,0 +1,250 @@
+{
+  "menuId": "NOBA.Archive.ContextMenu",
+  "menuTitle": "NOBA Archive",
+  "rootKey": "HKLM\\SOFTWARE\\NOBA\\Archive",
+  "installPathValue": "InstallPath",
+  "applicationExecutable": "NOBA.Archive.App.exe",
+  "commandLineExecutable": "noba-ar.exe",
+  "resolverVerb": "shell",
+  "keysCreatedOnInstall": [
+    "HKLM\\SOFTWARE\\NOBA\\Archive",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.open",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.test",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.extracthere",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.extractto",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.7z",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.gzip",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.tar",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.zip",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.create"
+  ],
+  "keysRemovedOnUninstall": [
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.create",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.zip",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.tar",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.gzip",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.compress.7z",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.extractto",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.extracthere",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.test",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell\\noba.open",
+    "HKLM\\SOFTWARE\\NOBA\\Archive\\Shell",
+    "HKLM\\SOFTWARE\\NOBA\\Archive"
+  ],
+  "entries": [
+    {
+      "id": "noba.open",
+      "action": "OpenInApp",
+      "format": null,
+      "host": "Application",
+      "label": "Open with NOBA Archive",
+      "archiveOnly": true,
+      "scope": "Archives",
+      "scopes": [
+        "SystemFileAssociations\\.7z",
+        "SystemFileAssociations\\.gz",
+        "SystemFileAssociations\\.r00",
+        "SystemFileAssociations\\.rar",
+        "SystemFileAssociations\\.tar",
+        "SystemFileAssociations\\.zip",
+        "SystemFileAssociations\\.zipx"
+      ],
+      "executable": "NOBA.Archive.App.exe",
+      "arguments": [
+        "literal:--open",
+        "ArchivePath"
+      ],
+      "directlyRegistrable": true,
+      "multiSelect": "SingleItemOnly"
+    },
+    {
+      "id": "noba.test",
+      "action": "TestArchive",
+      "format": null,
+      "host": "CommandLine",
+      "label": "Test archive",
+      "archiveOnly": true,
+      "scope": "Archives",
+      "scopes": [
+        "SystemFileAssociations\\.7z",
+        "SystemFileAssociations\\.gz",
+        "SystemFileAssociations\\.r00",
+        "SystemFileAssociations\\.rar",
+        "SystemFileAssociations\\.tar",
+        "SystemFileAssociations\\.zip",
+        "SystemFileAssociations\\.zipx"
+      ],
+      "executable": "noba-ar.exe",
+      "arguments": [
+        "literal:test",
+        "ArchivePath"
+      ],
+      "directlyRegistrable": true,
+      "multiSelect": "SingleItemOnly"
+    },
+    {
+      "id": "noba.extracthere",
+      "action": "ExtractHere",
+      "format": null,
+      "host": "CommandLine",
+      "label": "Extract here",
+      "archiveOnly": true,
+      "scope": "Archives",
+      "scopes": [
+        "SystemFileAssociations\\.7z",
+        "SystemFileAssociations\\.gz",
+        "SystemFileAssociations\\.r00",
+        "SystemFileAssociations\\.rar",
+        "SystemFileAssociations\\.tar",
+        "SystemFileAssociations\\.zip",
+        "SystemFileAssociations\\.zipx"
+      ],
+      "executable": "noba-ar.exe",
+      "arguments": [
+        "literal:extract",
+        "ArchivePath",
+        "literal:-o",
+        "ContainingFolder"
+      ],
+      "directlyRegistrable": false,
+      "multiSelect": "SingleItemOnly"
+    },
+    {
+      "id": "noba.extractto",
+      "action": "ExtractTo",
+      "format": null,
+      "host": "Application",
+      "label": "Extract to\u2026",
+      "archiveOnly": true,
+      "scope": "Archives",
+      "scopes": [
+        "SystemFileAssociations\\.7z",
+        "SystemFileAssociations\\.gz",
+        "SystemFileAssociations\\.r00",
+        "SystemFileAssociations\\.rar",
+        "SystemFileAssociations\\.tar",
+        "SystemFileAssociations\\.zip",
+        "SystemFileAssociations\\.zipx"
+      ],
+      "executable": "NOBA.Archive.App.exe",
+      "arguments": [
+        "literal:--extract",
+        "ArchivePath"
+      ],
+      "directlyRegistrable": true,
+      "multiSelect": "SingleItemOnly"
+    },
+    {
+      "id": "noba.compress.7z",
+      "action": "CompressTo",
+      "format": "7z",
+      "host": "CommandLine",
+      "label": "Compress to 7Z",
+      "archiveOnly": false,
+      "scope": "Files, Folders",
+      "scopes": [
+        "*",
+        "Directory"
+      ],
+      "executable": "noba-ar.exe",
+      "arguments": [
+        "literal:create",
+        "SuggestedTarget",
+        "SelectedPaths",
+        "literal:--format",
+        "FormatId"
+      ],
+      "directlyRegistrable": false,
+      "multiSelect": "AllItemsAtOnce"
+    },
+    {
+      "id": "noba.compress.gzip",
+      "action": "CompressTo",
+      "format": "gzip",
+      "host": "CommandLine",
+      "label": "Compress to GZIP",
+      "archiveOnly": false,
+      "scope": "Files",
+      "scopes": [
+        "*"
+      ],
+      "executable": "noba-ar.exe",
+      "arguments": [
+        "literal:create",
+        "SuggestedTarget",
+        "SelectedPaths",
+        "literal:--format",
+        "FormatId"
+      ],
+      "directlyRegistrable": false,
+      "multiSelect": "AllItemsAtOnce"
+    },
+    {
+      "id": "noba.compress.tar",
+      "action": "CompressTo",
+      "format": "tar",
+      "host": "CommandLine",
+      "label": "Compress to TAR",
+      "archiveOnly": false,
+      "scope": "Files, Folders",
+      "scopes": [
+        "*",
+        "Directory"
+      ],
+      "executable": "noba-ar.exe",
+      "arguments": [
+        "literal:create",
+        "SuggestedTarget",
+        "SelectedPaths",
+        "literal:--format",
+        "FormatId"
+      ],
+      "directlyRegistrable": false,
+      "multiSelect": "AllItemsAtOnce"
+    },
+    {
+      "id": "noba.compress.zip",
+      "action": "CompressTo",
+      "format": "zip",
+      "host": "CommandLine",
+      "label": "Compress to ZIP",
+      "archiveOnly": false,
+      "scope": "Files, Folders",
+      "scopes": [
+        "*",
+        "Directory"
+      ],
+      "executable": "noba-ar.exe",
+      "arguments": [
+        "literal:create",
+        "SuggestedTarget",
+        "SelectedPaths",
+        "literal:--format",
+        "FormatId"
+      ],
+      "directlyRegistrable": false,
+      "multiSelect": "AllItemsAtOnce"
+    },
+    {
+      "id": "noba.create",
+      "action": "CreateArchive",
+      "format": null,
+      "host": "Application",
+      "label": "Create archive\u2026",
+      "archiveOnly": false,
+      "scope": "Files, Folders",
+      "scopes": [
+        "*",
+        "Directory"
+      ],
+      "executable": "NOBA.Archive.App.exe",
+      "arguments": [
+        "literal:--create",
+        "SelectedPaths"
+      ],
+      "directlyRegistrable": true,
+      "multiSelect": "AllItemsAtOnce"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.Application</RootNamespace>
+    <Description>Use cases, operation queue, and policies. Never references an archive library.</Description>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Security\NOBA.Archive.Security.csproj" />
+  </ItemGroup>
+</Project>

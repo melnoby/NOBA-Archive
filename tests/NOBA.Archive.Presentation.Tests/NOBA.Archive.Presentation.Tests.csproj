@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NOBA.Archive.Presentation.Tests</RootNamespace>
+    <NobaTestProject>true</NobaTestProject>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.TestKit\NOBA.Archive.TestKit.csproj" />
+    <ProjectReference Include="..\..\src\NOBA.Archive.Presentation\NOBA.Archive.Presentation.csproj" />
+  </ItemGroup>
+</Project>

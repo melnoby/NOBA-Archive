@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DROP 08 Phase 5 - the managed edge of the modern context menu (plan section A).
+
+    This is the thin layer that speaks a C ABI to NOBA.Archive.ShellAdapter (C++, in dllhost.exe) and
+    the real action model on the other side. It holds no rules: availability comes from
+    ShellMenuBuilder, ids and labels from ShellRegistration, commands from ShellLauncher.
+
+    Split from the C++ deliberately - it keeps the native side free of any menu vocabulary and this
+    side free of COM.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.ShellBridge</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Loaded by hostfxr into a surrogate process, not launched: it needs its own deps.json. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Handle() is the managed entry point behind the C ABI. It is internal because it is not part of
+      the ABI - the exported functions are - but the round trip has to be testable without a native
+      caller, or the only place the JSON contract could be exercised would be inside a right-click.
+    -->
+    <InternalsVisibleTo Include="NOBA.Archive.ShellBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Engine\NOBA.Archive.Engine.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Presentation\NOBA.Archive.Presentation.csproj" />
+  </ItemGroup>
+
+</Project>

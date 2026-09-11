@@ -1,0 +1,867 @@
+<title>NOBA Archive · Master Product &amp; Execution Plan V3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Same bloodline as the app: values from src/NOBA.Archive.Presentation/Design/DesignTokens.cs.
+     Warm paper in light, cold navy in dark - the split the product itself makes. */
+  :root {
+    --ground:#F6F4F0; --panel:#FCFBF9; --sunken:#EBE8E1;
+    --ink:#1E293B; --muted:#566378; --faint:#7A8AA3; --rule:#DAD5CB;
+    --accent:#2B4C8C; --accent-soft:rgba(43,76,140,.10);
+    --pass:#15803D;   --pass-soft:rgba(21,128,61,.13);
+    --part:#B45309;   --part-soft:rgba(180,83,9,.13);
+    --none:#94A3B8;   --none-soft:rgba(148,163,184,.14);
+    --risk:#DC2626;   --risk-soft:rgba(220,38,38,.12);
+    --sans:"IBM Plex Sans Arabic","Segoe UI",system-ui,sans-serif;
+    --mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:#0B1220; --panel:#141C2B; --sunken:#070C16;
+      --ink:#F8FAFC; --muted:#94A3B8; --faint:#64748B; --rule:rgba(255,255,255,.11);
+      --accent:#3B82F6; --accent-soft:rgba(59,130,246,.15);
+      --pass:#4ADE80;   --pass-soft:rgba(74,222,128,.14);
+      --part:#FBBF24;   --part-soft:rgba(251,191,36,.14);
+      --none:#64748B;   --none-soft:rgba(100,116,139,.18);
+      --risk:#F87171;   --risk-soft:rgba(248,113,113,.14);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:#0B1220; --panel:#141C2B; --sunken:#070C16;
+    --ink:#F8FAFC; --muted:#94A3B8; --faint:#64748B; --rule:rgba(255,255,255,.11);
+    --accent:#3B82F6; --accent-soft:rgba(59,130,246,.15);
+    --pass:#4ADE80;   --pass-soft:rgba(74,222,128,.14);
+    --part:#FBBF24;   --part-soft:rgba(251,191,36,.14);
+    --none:#64748B;   --none-soft:rgba(100,116,139,.18);
+    --risk:#F87171;   --risk-soft:rgba(248,113,113,.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size:16px; line-height:1.72; margin:0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    direction: rtl; max-width:1160px; margin:0 auto;
+    padding: clamp(26px,4.5vw,64px) clamp(16px,3.5vw,36px) 90px;
+    display:flex; flex-direction:column; gap:52px;
+  }
+
+  code, .num { direction:ltr; unicode-bidi:isolate; font-family:var(--mono); }
+  code {
+    font-size:.855em; font-weight:500; background:var(--accent-soft); color:var(--accent);
+    padding:.1em .4em; border-radius:3px; white-space:nowrap;
+  }
+
+  h1,h2,h3 { margin:0; line-height:1.3; text-wrap:balance; }
+
+  /* ---------- masthead ---------- */
+  .eyebrow {
+    font-family:var(--mono); font-size:12px; font-weight:500; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted); direction:ltr; text-align:right; margin:0;
+  }
+  .masthead { display:flex; flex-direction:column; gap:16px; }
+  .masthead h1 { font-size:clamp(28px,4.8vw,46px); font-weight:700; letter-spacing:-.015em; }
+  .lede { margin:0; font-size:clamp(16.5px,2vw,18.5px); color:var(--muted); max-width:64ch; }
+  .lede strong { color:var(--ink); font-weight:600; }
+
+  /* ---------- counters ---------- */
+  .counts {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr));
+    gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:6px; overflow:hidden;
+  }
+  .count { background:var(--panel); padding:16px 18px; display:flex; flex-direction:column; gap:4px; }
+  .count b {
+    font-family:var(--mono); font-size:30px; font-weight:600; line-height:1;
+    font-variant-numeric:tabular-nums; direction:ltr; text-align:right;
+  }
+  .count span { font-size:13px; color:var(--muted); }
+  .count.a b { color:var(--pass); }
+  .count.b b { color:var(--part); }
+  .count.c b { color:var(--none); }
+  .count.d b { color:var(--risk); }
+
+  /* ---------- legend ---------- */
+  .legend { display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center; }
+  .legend-item { display:flex; align-items:center; gap:7px; font-size:13.5px; color:var(--muted); }
+
+  .dot {
+    width:20px; height:20px; border-radius:4px; display:grid; place-items:center;
+    font-family:var(--mono); font-size:11px; font-weight:600; flex:none; direction:ltr;
+  }
+  .dot.p { background:var(--pass-soft); color:var(--pass); }
+  .dot.h { background:var(--part-soft); color:var(--part); }
+  .dot.n { background:var(--none-soft); color:var(--none); }
+  .dot.r { background:var(--risk-soft); color:var(--risk); }
+  .dot.x { background:transparent; color:var(--faint); }
+
+  /* ---------- the matrix ---------- */
+  .matrix-wrap { overflow-x:auto; border:1px solid var(--rule); border-radius:8px; background:var(--panel); }
+  table { border-collapse:collapse; width:100%; min-width:860px; }
+
+  thead th {
+    position:sticky; top:0; background:var(--sunken);
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.05em;
+    color:var(--muted); padding:11px 8px; text-align:center; white-space:nowrap;
+    border-bottom:1px solid var(--rule); direction:ltr;
+  }
+  thead th.name { text-align:right; direction:rtl; padding-inline-start:16px; min-width:230px; font-size:11px; }
+
+  tbody td { padding:9px 8px; text-align:center; border-bottom:1px solid var(--rule); }
+  tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:var(--accent-soft); }
+
+  /* The id is a rail, not a prefix: as inline text it collided with the name and read as a typo. */
+  td.name { text-align:right; padding-inline-start:16px; display:flex; gap:11px; align-items:baseline; }
+  td.name .id {
+    font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--faint);
+    direction:ltr; flex:none; width:20px; font-variant-numeric:tabular-nums;
+  }
+  td.name .who { min-width:0; }
+  td.name b { font-weight:600; font-size:14.5px; }
+  td.name small { display:block; font-size:12px; color:var(--muted); line-height:1.5; margin-top:1px; }
+
+  td .dot { margin:0 auto; }
+
+  tr.done td { background:var(--pass-soft); }
+  tr.done:hover td { background:var(--pass-soft); }
+
+  /* ---------- finding cards ---------- */
+  .findings { display:flex; flex-direction:column; gap:16px; }
+
+  .finding {
+    border:1px solid var(--rule); border-radius:8px; background:var(--panel);
+    border-inline-start-width:3px; padding:20px 22px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .finding.up   { border-inline-start-color:var(--pass); }
+  .finding.down { border-inline-start-color:var(--risk); }
+  .finding.flat { border-inline-start-color:var(--part); }
+
+  .finding-top { display:flex; align-items:center; gap:11px; flex-wrap:wrap; }
+  .finding h3 { font-size:17px; font-weight:600; }
+
+  .tag {
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.04em;
+    padding:3px 8px; border-radius:3px; direction:ltr;
+  }
+  .tag.up   { background:var(--pass-soft); color:var(--pass); }
+  .tag.down { background:var(--risk-soft); color:var(--risk); }
+  .tag.flat { background:var(--part-soft); color:var(--part); }
+
+  .finding p { margin:0; font-size:15px; color:var(--muted); line-height:1.72; max-width:72ch; }
+  .finding p strong { color:var(--ink); font-weight:600; }
+
+  .evidence {
+    font-family:var(--mono); font-size:12px; color:var(--faint);
+    direction:ltr; text-align:right; padding-top:4px; border-top:1px dashed var(--rule);
+    line-height:1.7; word-break:break-word;
+  }
+
+  /* ---------- ordered plan ---------- */
+  .order { display:flex; flex-direction:column; gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
+  .step { background:var(--panel); padding:16px 20px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; }
+  .step .n {
+    font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent);
+    direction:ltr; flex:none; min-width:22px;
+  }
+  .step h4 { margin:0; font-size:15.5px; font-weight:600; flex:none; }
+  .step p { margin:0; font-size:14px; color:var(--muted); flex:1; min-width:250px; line-height:1.62; }
+  .step .cost { font-family:var(--mono); font-size:11px; color:var(--faint); direction:ltr; flex:none; }
+
+  /* ---------- section shell ---------- */
+  section { display:flex; flex-direction:column; gap:18px; }
+  section > h2 {
+    font-size:clamp(21px,3vw,27px); font-weight:700; letter-spacing:-.01em;
+    padding-bottom:9px; border-bottom:1px solid var(--rule);
+  }
+  section > .intro { margin:0; font-size:15.5px; color:var(--muted); max-width:70ch; line-height:1.72; }
+  section > .intro strong { color:var(--ink); font-weight:600; }
+
+  .warn {
+    border:1px solid var(--rule); border-inline-start:3px solid var(--risk);
+    background:var(--panel); border-radius:5px; padding:15px 17px;
+    font-size:14.5px; color:var(--muted); line-height:1.68;
+  }
+  .warn b { color:var(--ink); font-weight:600; }
+
+  .foot { font-family:var(--mono); font-size:11.5px; color:var(--faint); direction:ltr; text-align:right; letter-spacing:.03em; }
+
+  @media (prefers-reduced-motion: reduce) { *{animation:none!important;transition:none!important} }
+</style><style>
+  /* ---------- V3 additions ---------- */
+  .thesis {
+    font-size:clamp(19px,2.6vw,25px); font-weight:600; color:var(--ink);
+    direction:ltr; text-align:left; line-height:1.45; margin:0;
+    padding:20px 22px; border-inline-start:3px solid var(--accent);
+    background:var(--accent-soft); border-radius:5px; text-wrap:balance;
+  }
+  .subtitle { font-family:var(--mono); font-size:13px; color:var(--accent); direction:ltr; text-align:right; margin:0; letter-spacing:.03em; }
+
+  .pipe {
+    direction:ltr; font-family:var(--mono); font-size:clamp(11px,1.5vw,14px); font-weight:600;
+    background:var(--sunken); border:1px solid var(--rule); border-radius:6px;
+    padding:16px 14px; text-align:center; color:var(--ink); overflow-x:auto; white-space:nowrap;
+  }
+  .pipe i { font-style:normal; color:var(--accent); padding:0 6px; }
+
+  .rules { display:flex; flex-direction:column; gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
+  .rule-row { background:var(--panel); padding:14px 18px; display:flex; gap:14px; align-items:baseline; }
+  .rule-row .k { font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent); flex:none; width:26px; direction:ltr; }
+  .rule-row p { margin:0; font-size:14.5px; color:var(--muted); line-height:1.65; }
+  .rule-row p b { color:var(--ink); font-weight:600; }
+
+  .gates { display:grid; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); gap:10px; }
+  .gate-cell { background:var(--panel); border:1px solid var(--rule); border-radius:6px; padding:15px 17px; display:flex; flex-direction:column; gap:5px; }
+  .gate-cell .g { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.05em; color:var(--accent); direction:ltr; }
+  .gate-cell p { margin:0; font-size:13.5px; color:var(--muted); line-height:1.6; }
+
+  /* feature cards */
+  .feat { border:1px solid var(--rule); border-radius:8px; background:var(--panel); overflow:hidden; }
+  .feat-head { display:flex; align-items:center; gap:12px; padding:15px 18px; background:var(--sunken); border-bottom:1px solid var(--rule); flex-wrap:wrap; }
+  .feat-head .fid { font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); direction:ltr; flex:none; }
+  .feat-head h3 { font-size:16.5px; font-weight:600; flex:1; min-width:140px; }
+  .feat-dots { display:flex; gap:3px; flex:none; }
+  .feat-dots .dot { width:17px; height:17px; font-size:9.5px; border-radius:3px; }
+  .feat-body { padding:17px 18px; display:flex; flex-direction:column; gap:13px; }
+  .feat-body p { margin:0; font-size:14.5px; color:var(--muted); line-height:1.68; }
+  .feat-body p b { color:var(--ink); font-weight:600; }
+  .lbl { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.05em; color:var(--faint); direction:ltr; display:block; margin-bottom:3px; }
+  .feat-body ul { margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:5px; }
+  .feat-body li { font-size:14px; color:var(--muted); line-height:1.6; }
+  .feat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px 22px; }
+  .gate-line { font-size:14px; color:var(--ink); background:var(--accent-soft); border-radius:4px; padding:10px 13px; line-height:1.6; }
+  .feat-list { display:flex; flex-direction:column; gap:14px; }
+</style>
+<div class="doc">
+
+  <header class="masthead">
+    <p class="eyebrow">NOBA Archive · 2026-08-24 · supersedes V2</p>
+    <h1>Master Product &amp; Execution Plan V3</h1>
+    <p class="subtitle">Feature-by-Feature · Engine → UI → Windows</p>
+    <p class="thesis">The Engine is not the product.<br>The complete working feature on Windows is the product.</p>
+    <p class="lede">
+      هذه الوثيقة هي المرجع الرسمي لكل Drop قادم. تلغي ترتيب V2 ومنهجه، وتحتفظ بنطاق ميزاته.
+      كل ما في قسم «الحالة» أدناه مأخوذ من تدقيق الشجرة سطرًا بسطر في
+      <span class="num">2026-08-23-summary-parts</span>، لا من الذاكرة ولا من الخطة السابقة.
+    </p>
+  </header>
+
+  <section>
+    <h2>1 · القاعدة الأساسية</h2>
+    <p class="intro">
+      لا تُبنى قدرة في المحرّك ثم يُؤجَّل ظهورها. كل ميزة تجارية تُنفَّذ End-to-End في الدورة نفسها،
+      ولا تتراكم قدرات غير مرئية للمستخدم.
+    </p>
+    <p class="pipe">FEATURE <i>→</i> ENGINE <i>→</i> SEAM <i>→</i> PRESENTATION <i>→</i> WINUI <i>→</i> WINDOWS <i>→</i> REAL-WORLD PASS</p>
+    <div class="rules">
+      <div class="rule-row"><span class="k">1</span><p><b>القدرة موجودة في المحرّك:</b> لا تُعاد كتابتها. تُوصَل بالـSeam، تُبنى لها Presentation وWinUI، تُشغَّل على Windows، تُختبَر على حالة حقيقية، ثم تُغلق.</p></div>
+      <div class="rule-row"><span class="k">2</span><p><b>القدرة غير موجودة:</b> تُبنى في المحرّك وتُختبَر أولًا، ثم يُعدَّل الـSeam، ثم Presentation، ثم WinUI، ثم Windows، ثم ملفات حقيقية.</p></div>
+      <div class="rule-row"><span class="k">3</span><p><b>لا Mock UI</b> لميزة غير موجودة، ولا زر يَعِد بما لا يحدث، ولا خيار فارغ.</p></div>
+      <div class="rule-row"><span class="k">4</span><p><b>لا كود محرّك «لأننا سنحتاجه لاحقًا».</b> ما لا يظهر في هذا الـDrop لا يُكتب في هذا الـDrop.</p></div>
+      <div class="rule-row"><span class="k">5</span><p><b>كل Drop ينتهي بشيء يُشغَّل ويُرى ويُستخدَم على Windows.</b> هذا هو تعريف انتهاء الـDrop، لا عدد الملفات.</p></div>
+      <div class="rule-row"><span class="k">6</span><p><b>لا تُبدأ ميزة قبل إغلاق بوابة الميزة الحالية.</b> والمشكلة المكتشَفة في التشغيل الحقيقي تُعالَج قبل أي ميزة جديدة إن كانت تمنع الـGate.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Definition of Done</h2>
+    <p class="intro">
+      سبع بوابات. <strong>اختبارات Linux وحدها لا تُغلق ميزة</strong>، و<strong>WinUI BUILD PASS
+      ليس RUNTIME PASS</strong> — بينهما مسافة أثبتَتْها هذه الشجرة أكثر من مرة: بناء ناجح وتطبيق
+      يُغلق فور تشغيله، وبناء ناجح ونافذة تتجمّد.
+    </p>
+    <div class="gates">
+      <div class="gate-cell"><span class="g">1 · ENGINE</span><p>القدرة موجودة ومختبَرة، أو بُنيت واختُبرت في هذا الـDrop.</p></div>
+      <div class="gate-cell"><span class="g">2 · CONTRACT / SEAM</span><p>العقد واضح ومختبَر، ولا يسمح لأي شاشة باتخاذ قرار سياسة.</p></div>
+      <div class="gate-cell"><span class="g">3 · PRESENTATION</span><p>ViewModel وحالات وتنسيق، مختبَرة على جهاز لا يستطيع بناء WinUI أصلًا.</p></div>
+      <div class="gate-cell"><span class="g">4 · WINUI BUILD</span><p>XAML وC# يُترجمان بصفر أخطاء وبلا suppression.</p></div>
+      <div class="gate-cell"><span class="g">5 · WINDOWS RUNTIME</span><p>الشاشة تُفتح وتستجيب فعلًا. لا يُعلَن من Linux إطلاقًا.</p></div>
+      <div class="gate-cell"><span class="g">6 · REAL-WORLD TEST</span><p>أرشيف حقيقي، لا fixture مولَّد داخل الاختبار.</p></div>
+      <div class="gate-cell"><span class="g">7 · SECURITY / REGRESSION</span><p>لا التفاف على المنع، ولا تراجُع في ميزة مغلقة سابقًا.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · قاعدة الشريحة الرأسية</h2>
+    <p class="intro">
+      عجزي عن تشغيل WinUI على Linux ليس عذرًا لبناء واجهة كاملة ثم اكتشاف المشاكل بعد عدة ميزات —
+      بل هو السبب في العكس تمامًا.
+    </p>
+    <p class="pipe">ENGINE SLICE <i>→</i> UI SLICE <i>→</i> WINDOWS TEST <i>→</i> FIX <i>→</i> COMPLETE</p>
+    <p class="intro">
+      كل ميزة تُقسَّم إلى أصغر شريحة رأسية ممكنة تعطي شيئًا مرئيًّا. الشريحة التي لا يمكن رؤيتها على
+      Windows ليست شريحة، بل تأجيل.
+    </p>
+  </section>
+
+  <section>
+    <h2>4 · الحالة الحالية</h2>
+    <p class="intro">
+      تدقيق كامل للشجرة مقابل البوابات السبع. بالمعيار الجديد <strong>ميزة واحدة مكتملة</strong> —
+      وهي غير مذكورة في V2 أصلًا، فأضفتها كـ<span class="num">00</span>.
+    </p>
+    <div class="counts">
+      <div class="count a"><b>1</b><span>مكتملة بالمعيار الجديد</span></div>
+      <div class="count b"><b>6</b><span>قدرة موجودة، بلا واجهة</span></div>
+      <div class="count c"><b>7</b><span>لم تبدأ</span></div>
+      <div class="count d"><b>2</b><span>معلَنة أقوى مما هي</span></div>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="dot p">✓</span> اجتازت</span>
+      <span class="legend-item"><span class="dot h">◐</span> جزئيّة</span>
+      <span class="legend-item"><span class="dot n">·</span> لم تبدأ</span>
+      <span class="legend-item"><span class="dot r">!</span> خطر: معلَن ولم يُثبَت</span>
+      <span class="legend-item"><span class="dot x">—</span> لا تنطبق</span>
+    </div>
+    <div class="matrix-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="name">الميزة</th>
+            <th>ENGINE</th>
+            <th>CONTRACT</th>
+            <th>PRESENT.</th>
+            <th>WINUI</th>
+            <th>RUNTIME</th>
+            <th>REAL&nbsp;WORLD</th>
+            <th>SECURITY</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="done">
+            <td class="name"><span class="id">00</span><span class="who"><b>التصفّح والاستخراج</b><small>غير موجودة في V2 — وهي الوحيدة المكتملة</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">01</span><span class="who"><b>فحص الأرشيف + Findings</b><small>المحرّك والعقد جاهزان — قيد التنفيذ الآن</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot h">◐</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot h">◐</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">02</span><span class="who"><b>مركز العمليات</b><small>الطابور مختبَر — ولا شيء يستدعيه</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot x">—</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">03</span><span class="who"><b>إنشاء أرشيف</b><small>يعمل من الـCLI، لا من الواجهة</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot n">·</span></td><td><span class="dot h">◐</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot h">◐</span></td><td><span class="dot h">◐</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">04</span><span class="who"><b>تكامل Explorer</b><small>أوامر الـCLI موجودة، الحزمة لا</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot n">·</span></td><td><span class="dot x">—</span></td>
+            <td><span class="dot x">—</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">05</span><span class="who"><b>استخراج آمن وصحّة الأرشيف</b><small>أقرب ميزة للإغلاق بعد 01</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot h">◐</span></td>
+            <td><span class="dot h">◐</span></td><td><span class="dot h">◐</span></td><td><span class="dot n">·</span></td><td><span class="dot p">✓</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">06</span><span class="who"><b>فتح ملف من داخل الأرشيف</b><small>لا يوجد كود</small></span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">07</span><span class="who"><b>مقارنة أرشيفين</b><small>لا يوجد كود إطلاقًا</small></span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">08</span><span class="who"><b>السحب والإفلات</b><small>الإفلات داخل النافذة يعمل، السحب خارجها لا</small></span></td>
+            <td><span class="dot x">—</span></td><td><span class="dot x">—</span></td><td><span class="dot n">·</span></td>
+            <td><span class="dot h">◐</span></td><td><span class="dot h">◐</span></td><td><span class="dot n">·</span></td><td><span class="dot x">—</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">09</span><span class="who"><b>تاريخ التنقّل</b><small>لأعلى وBreadcrumb يعملان؛ لا رجوع/تقدّم</small></span></td>
+            <td><span class="dot x">—</span></td><td><span class="dot x">—</span></td><td><span class="dot h">◐</span></td>
+            <td><span class="dot h">◐</span></td><td><span class="dot h">◐</span></td><td><span class="dot n">·</span></td><td><span class="dot x">—</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">10</span><span class="who"><b>بحث وترتيب وفلترة</b><small>البحث يعمل؛ الترتيب والفلترة لا</small></span></td>
+            <td><span class="dot x">—</span></td><td><span class="dot x">—</span></td><td><span class="dot h">◐</span></td>
+            <td><span class="dot h">◐</span></td><td><span class="dot h">◐</span></td><td><span class="dot n">·</span></td><td><span class="dot x">—</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">11</span><span class="who"><b>الإضافة لأرشيف قائم</b><small>القدرة معلَنة ولا تعني ما يوحي به اسمها</small></span></td>
+            <td><span class="dot r">!</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">12</span><span class="who"><b>كلمة المرور والتشفير</b><small>مبنيّة حتى WinUI ولم تُشغَّل مرّة واحدة</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot p">✓</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">13</span><span class="who"><b>استرجاع الأسماء العربية القديمة</b><small>مثبَت على بايتات مصطنعة فقط</small></span></td>
+            <td><span class="dot p">✓</span></td><td><span class="dot p">✓</span></td><td><span class="dot h">◐</span></td>
+            <td><span class="dot h">◐</span></td><td><span class="dot n">·</span></td><td><span class="dot r">!</span></td><td><span class="dot p">✓</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">14</span><span class="who"><b>RAR مشفَّر</b><small>لا اختبار واحد، والفكّ نفسه مشروط بالمكتبة</small></span></td>
+            <td><span class="dot r">!</span></td><td><span class="dot p">✓</span></td><td><span class="dot n">·</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+          </tr>
+          <tr>
+            <td class="name"><span class="id">15</span><span class="who"><b>الحزمة والتسويق</b><small>لا وجود لأي ملف حزمة</small></span></td>
+            <td><span class="dot x">—</span></td><td><span class="dot x">—</span></td><td><span class="dot x">—</span></td>
+            <td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td><td><span class="dot n">·</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </section>
+
+  <section>
+    <h2>5 · خمسة أشياء تخالف V2</h2>
+    <p class="intro">أربعة في صالحك، وواحد ليس كذلك. كلٌّ منها بمرجع ملف وسطر.</p>
+    <div class="findings">
+
+      <div class="finding up">
+        <div class="finding-top"><span class="tag up">أفضل مما في الخطة</span><h3>ميزة مكتملة ناقصة من القائمة</h3></div>
+        <p>
+          خطة V2 تبدأ من رقم <span class="num">01</span>، فلا مكان فيها للتصفّح والاستخراج — وهما
+          الشيء الوحيد الذي <strong>اجتاز البوابات السبع فعلًا</strong>: فتحتَ أرشيف RAR بأسماء عربية
+          على Windows، وتصفّحته، واستخرجته. إغفال ذلك من اللوحة يجعل المشروع يبدو عند الصفر وهو ليس
+          كذلك. أضفته كـ<span class="num">00</span> وأغلقت بوابته بأثر رجعي.
+        </p>
+        <p class="evidence">evidence: user-confirmed Windows run · BrowsePage + EngineWorkspace + ExtractArchiveHandler</p>
+      </div>
+
+      <div class="finding down">
+        <div class="finding-top"><span class="tag down">أسوأ مما في الخطة</span><h3><span class="num">11</span> · القدرة المعلَنة لا تعني ما يوحي به اسمها</h3></div>
+        <p>
+          الخطة تقول «ENGINE PARTIAL» عن الإضافة لأرشيف قائم، والواقع أدقّ وأخطر: العلم
+          <code>ArchiveCapabilities.AddEntries</code> <strong>معلَن ومفعَّل في المزوّدَين</strong>،
+          لكن تعليق المزوّد نفسه يقول إن <code>Create</code> و<code>AddEntries</code> معناهما هنا
+          «أنتج أرشيفًا جديدًا فيه هذه المداخل» — أي لا تحديث لأرشيف موجود في مكانه. واجهة تقرأ العلم
+          وتعرض «إضافة ملفات» ستَعِد المستخدم بما لا يحدث، وستكون بالضبط الـMock UI التي منعتها
+          القاعدة الثالثة. أي عمل على <span class="num">11</span> يبدأ من المحرّك، لا من الشاشة.
+        </p>
+        <p class="evidence">SevenZipArchiveProvider.cs:61 · SevenZipBuilder.cs:59 · ZipArchiveProvider.cs:420 · Interop/UpdateCallback.cs:110</p>
+      </div>
+
+      <div class="finding up">
+        <div class="finding-top"><span class="tag up">أفضل مما في الخطة</span><h3><span class="num">12</span> · مبنيّة حتى آخر الطريق، وتنقصها تجربة واحدة</h3></div>
+        <p>
+          الخطة تصنّفها «ENGINE + UI» كأنها عمل قادم. الحقيقة أنها <strong>مبنيّة عبر البوابات الأربع
+          الأولى كاملة</strong>: <code>IPasswordProvider</code> في المحرّك،
+          <code>DialogPasswordProvider</code> في الـPresentation مع ثمانية اختبارات، و
+          <code>WindowDialogHost</code> في WinUI بحوار حقيقي لا Stub. الناقص الوحيد أنها
+          <strong>لم تُشغَّل مرّة واحدة</strong> — لم نفتح أرشيفًا مشفَّرًا بعد. هذه أقصر مسافة بين
+          «مبنيّ» و«مكتمل» في اللوحة كلها: أرشيف واحد وخمس دقائق.
+        </p>
+        <p class="evidence">HostDialogTests HDL-001…008 · WindowDialogHost.cs · DialogPasswordProvider.cs</p>
+      </div>
+
+      <div class="finding up">
+        <div class="finding-top"><span class="tag up">أفضل مما في الخطة</span><h3><span class="num">02</span> · الطابور ليس فكرة، بل مكوّن مختبَر لا يستدعيه أحد</h3></div>
+        <p>
+          <code>OperationQueue</code> عليه ثمانية اختبارات تغطّي الإكمال، ومعرّف الارتباط، وترجمة
+          الأخطاء، والإلغاء، و<strong>آلة حالات الإيقاف والاستئناف</strong>، وحدّ التزامن. ومع ذلك
+          لا يستدعيه شيء: <code>ServiceCollectionExtensions</code> يسجّله، و
+          <code>EngineWorkspace</code> يتجاوزه ويستدعي الـhandler مباشرة. أي أن العمل في
+          <span class="num">02</span> توصيل، لا بناء — وهذا يقلّص تقديره كثيرًا.
+        </p>
+        <p class="evidence">tests/NOBA.Archive.Application.Tests/OperationQueueTests.cs · ServiceCollectionExtensions.cs:90 · EngineWorkspace.cs</p>
+      </div>
+
+      <div class="finding flat">
+        <div class="finding-top"><span class="tag flat">مطابق، مع تفصيل مهم</span><h3><span class="num">13</span> و<span class="num">14</span> · الخطة محقّة، والسبب أدقّ</h3></div>
+        <p>
+          «NEW/UNPROVEN» و«UNPROVEN» تصنيفان صحيحان. التفصيل: اختبارات الأسماء القديمة تبني بايتات
+          <code>CP1256</code> في الاختبار نفسه — فهي تثبت أن فكّ الترميز صحيح، ولا تثبت شيئًا عن
+          أرشيف WinRAR حقيقي من 2009. وأخطر منها أن <strong>فكّ RAR نفسه مشروط ببناء مكتبة 7-Zip
+          المشحونة معك</strong>: اختبارات RAR فيها <code>Assert.Skip</code> صريح حين لا يجد البناء
+          مفكّك RAR. لا يوجد اختبار واحد لـRAR مشفَّر. وهذا شيء تستطيع حسمه بأمر واحد اليوم.
+        </p>
+        <p class="evidence">LegacyNameTests.cs:31 (ArabicCp1256 literal) · RarBackendTests.cs:37,59 (Assert.Skip)</p>
+      </div>
+
+    </div>
+
+    <p class="warn">
+      <b>أول ما يجب إثباته، قبل أي ميزة:</b> أن نسخة <code>7z.dll</code> المشحونة معك تفكّ RAR.
+      إن لم تكن كذلك فالميزتان <span class="num">01</span> و<span class="num">14</span> ستفشلان على
+      جهازك لسبب ليس في الكود. أمر واحد يحسمها، وهو أول سطر في قسم <span class="num">8</span>.
+    </p>
+  </section>
+
+  <section>
+    <h2>6 · الميزات، واحدة واحدة</h2>
+    <p class="intro">
+      النطاق كما حدّدته، مضافًا إليه ما وجده التدقيق: <strong>الموجود فعلًا</strong> و<strong>أقل
+      تغيير لازم</strong>. النقاط السبع بجانب كل عنوان هي بوابات هذه الميزة بالترتيب:
+      ENGINE · CONTRACT · PRESENTATION · WINUI · RUNTIME · REAL-WORLD · SECURITY.
+    </p>
+
+    <div class="feat-list">
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">00</span><h3>التصفّح والاستخراج</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span></span>
+        </div>
+        <div class="feat-body">
+          <p><b>مكتملة.</b> ليست في V2، وهي الوحيدة التي عبرت الطريق كاملًا: فتحتَ أرشيف RAR بأسماء عربية على Windows، وتصفّحته، واستخرجته. أُثبتها هنا حتى لا تبدو اللوحة عند الصفر وهي ليست كذلك.</p>
+          <p class="gate-line"><b>حارس التراجع:</b> أي Drop لاحق يكسر الفتح أو التصفّح أو الاستخراج يُعتبر فاشلًا مهما أضاف.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">01</span><h3>فحص الأرشيف + Findings</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot h">◐</span></span>
+        </div>
+        <div class="feat-body">
+          <div class="feat-grid">
+            <div>
+              <span class="lbl">الموجود فعلًا</span>
+              <ul>
+                <li><code>TestArchiveHandler</code> محقون في <code>EngineWorkspace</code></li>
+                <li><code>IArchiveWorkspace.TestAsync</code> على الـseam</li>
+                <li><code>ArchiveTestResult</code> + <code>Findings</code> + <code>IsUsable</code></li>
+                <li><code>ArchiveCapabilities.Test</code> ضمن <code>ReadOnlySet</code></li>
+                <li>تحقّق CRC حقيقي في المزوّدَين، وتمييز <b>تالف</b> عن <b>طريقة غير مدعومة</b></li>
+              </ul>
+            </div>
+            <div>
+              <span class="lbl">الناقص</span>
+              <ul>
+                <li>حالة الفحص في <code>BrowseViewModel</code> ونموذج نتيجة قابل للاختبار</li>
+                <li>نصوص الحالات الأربع في جدول الترجمة</li>
+                <li>حذف <code>IsEnabled="False"</code> وربط الزر بـ<code>CapabilitiesFor(format)</code></li>
+                <li>لوحة نتائج تعرض Findings مصنَّفة، لا سطر حالة واحد</li>
+              </ul>
+            </div>
+          </div>
+          <p class="gate-line"><b>Gate:</b> أفتح أرشيفًا حقيقيًّا <span class="num">RAR / 7Z / ZIP</span> ← أضغط فحص ← تظهر نتيجة حقيقية بإحدى الحالات الأربع ← تظهر Findings إن وجدت.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">02</span><h3>مركز العمليات</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot x">—</span></span>
+        </div>
+        <div class="feat-body">
+          <p><b>تصحيح مهم:</b> لن أسمّيها Engine Ready. الطابور موجود ومختبَر، لكن <code>EngineWorkspace</code> يتجاوزه ويستدعي الـhandler مباشرة، والـseam لا يمرّر <code>OperationId</code> ولا تقدّمًا. أي أن هناك عملًا حقيقيًّا في المحرّك والعقد قبل أي شاشة.</p>
+          <div class="feat-grid">
+            <div>
+              <span class="lbl">الموجود فعلًا</span>
+              <ul>
+                <li><code>IOperationQueue</code>: <code>Enqueue</code> · <code>TryPause</code> · <code>TryResume</code> · <code>TryCancel</code> · <code>Snapshot()</code></li>
+                <li><code>IPauseToken</code> — إيقاف حقيقي داخل حلقات النسخ</li>
+                <li><code>OperationProgress</code>: <code>CurrentItem</code> · items · bytes · سرعة لحظية ومتوسّطة · <code>Elapsed</code> · <code>Eta</code></li>
+                <li><code>IsIndeterminate</code> و<code>Percent</code> من نوع <code>double?</code> (ADR-0007)</li>
+                <li>ثمانية اختبارات تغطّي الإلغاء وآلة حالات Pause/Resume وحدّ التزامن</li>
+              </ul>
+            </div>
+            <div>
+              <span class="lbl">الناقص</span>
+              <ul>
+                <li>توصيل <code>EngineWorkspace</code> بالطابور بدل تجاوزه</li>
+                <li>عقد يعيد <code>OperationId</code> ويبثّ التقدّم إلى الواجهة</li>
+                <li><code>OperationsViewModel</code> بحالات: Queued · Running · Paused · Completed · Failed · Cancelled</li>
+                <li>شاشة العمليات</li>
+              </ul>
+            </div>
+          </div>
+          <p class="gate-line"><b>Gate:</b> أبدأ استخراجًا كبيرًا حقيقيًّا ← أرى التقدّم والسرعة وETA والملف الحالي ← Pause ← Resume ← Cancel ← أتأكّد أن العملية والطابور تصرّفا فعلًا، لا أن الشاشة فقط تغيّرت.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">03</span><h3>إنشاء أرشيف</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot n">·</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot h">◐</span><span class="dot h">◐</span></span>
+        </div>
+        <div class="feat-body">
+          <div class="feat-grid">
+            <div>
+              <span class="lbl">الموجود فعلًا</span>
+              <ul>
+                <li><code>CreateArchiveHandler</code> ويعمل اليوم من الـCLI</li>
+                <li><code>CreateOptionsViewModel</code> مختبَر، يبني كل خيار من قدرة المزوّد</li>
+                <li><code>CreateOption.Missing(key, reason)</code> — سبب عدم الإتاحة جاهز</li>
+                <li><code>Build() → CompressionOptions</code></li>
+              </ul>
+            </div>
+            <div>
+              <span class="lbl">الناقص</span>
+              <ul>
+                <li><code>CreateAsync</code> على <code>IArchiveWorkspace</code></li>
+                <li>شاشة الإنشاء: اختيار الملفات والوجهة والصيغة والمستوى</li>
+                <li>Solid · Encryption · Encrypt filenames · Split — كلها capability-driven</li>
+                <li>مرور كلمة المرور عبر <code>IPasswordProvider</code> القائم، لا مسار جديد للأسرار</li>
+              </ul>
+            </div>
+          </div>
+          <p class="gate-line"><b>Gate:</b> إنشاء أرشيف حقيقي من الواجهة ← فتحه بـ7-Zip الحقيقي ← فحصه ← Round Trip. وأي خيار غير مدعوم يظهر مع سببه، لا مخفيًّا ولا قابلًا للنقر ثم يفشل.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">04</span><h3>تكامل Windows Explorer</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot n">·</span><span class="dot x">—</span><span class="dot x">—</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span></span>
+        </div>
+        <div class="feat-body">
+          <div class="feat-grid">
+            <div>
+              <span class="lbl">الموجود فعلًا</span>
+              <ul>
+                <li>الـCLI بأوامر <code>list</code> · <code>info</code> · <code>test</code> · <code>extract</code> · <code>create</code></li>
+                <li><code>IFormatDetector</code> يقرأ الترويسة ولا يثق بالامتداد</li>
+                <li>الأمان أسفل الـseam، فالأوامر ترث المنع دون تكرار سياسة</li>
+              </ul>
+            </div>
+            <div>
+              <span class="lbl">الناقص</span>
+              <ul>
+                <li>حزمة MSIX وتسجيل <code>Sparse Package</code> — لا يوجد أي ملف حزمة في الشجرة</li>
+                <li>ربط الصيغ وأيقوناتها</li>
+                <li>معالج <code>IExplorerCommand</code></li>
+              </ul>
+            </div>
+          </div>
+          <p class="gate-line"><b>Gate:</b> نقر يمين على RAR حقيقي ← أربعة أوامر فقط: Extract Here · Extract to… · Open in NOBA · Test Archive ← تنفيذ فعلي ونتيجة صحيحة. لا قائمة طويلة.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">05</span><h3>استخراج آمن وصحّة الأرشيف</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot p">✓</span></span>
+        </div>
+        <div class="feat-body">
+          <p>الأمن هنا منطق داخلي ناضج تنقصه رؤية. الصفوف تَسِم المدخل المرفوض بالفعل برمز ووسم نصّي — الناقص أن <b>تشرح السبب</b> لا أن تشير إليه.</p>
+          <div class="feat-grid">
+            <div>
+              <span class="lbl">الموجود فعلًا</span>
+              <ul>
+                <li>رفض المسارات الخارجة من الجذر، ومجموعة اختبارات أرشيفات عدائية</li>
+                <li><code>ArchiveEntry.ForRejectedPath</code> مع سبب الرفض محفوظًا</li>
+                <li><code>RejectionDetail</code> مكشوف على <code>BrowseRow</code></li>
+                <li>وسم بصري ونصّي للمرفوض والمشفَّر في الجدول</li>
+                <li>تحذير الترميز المُخمَّن في شريط <code>InfoBar</code></li>
+              </ul>
+            </div>
+            <div>
+              <span class="lbl">الناقص</span>
+              <ul>
+                <li>شرح مقروء لكل سبب: path traversal · مدخل مشبوه · تالف · طريقة غير مدعومة</li>
+                <li>تقرير ما رُفض بعد الاستخراج، لا رقم مجرّد</li>
+                <li>تشغيل حقيقي على أرشيف عدائي على Windows</li>
+              </ul>
+            </div>
+          </div>
+          <p class="gate-line"><b>Gate:</b> أرشيف آمن وآخر عدائي حقيقيان ← الرفض يظهر ويُفسَّر بنصّ ورمز معًا، لا باللون وحده ← الاستخراج لا يكتب شيئًا خارج الوجهة.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">06</span><h3>الفتح من داخل الأرشيف</h3>
+          <span class="feat-dots"><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span></span>
+        </div>
+        <div class="feat-body">
+          <p>لا يوجد كود. ميزة جديدة بالكامل: نقرة مزدوجة على <span class="num">JPG / PDF / DOCX / TXT</span> تستخرجه مؤقتًا وتشغّله دون استخراج الأرشيف كلّه.</p>
+          <p><b>القرار المعماري المطلوب أولًا:</b> سياسة الملفات المؤقّتة — أين تُكتب، ومتى تُحذف، وماذا يحدث إن عدّلها المستخدم، وكيف لا تصبح تسريبًا لمحتوى أرشيف مشفَّر. هذا قرار أمني قبل أن يكون قرار واجهة.</p>
+          <p class="gate-line"><b>Gate:</b> نقرة مزدوجة على مستند داخل أرشيف كبير ← يُفتح في تطبيقه ← الأرشيف لم يُستخرج كاملًا ← الملف المؤقّت يُنظَّف بسياسة معلَنة.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">07</span><h3>مقارنة أرشيفين</h3>
+          <span class="feat-dots"><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span></span>
+        </div>
+        <div class="feat-body">
+          <p>لا يوجد كود إطلاقًا. Added · Removed · Modified · Unchanged، مع الحجم والتاريخ والمسار.</p>
+          <p class="gate-line"><b>Gate:</b> نسختان حقيقيتان من الأرشيف نفسه ← الفروق صحيحة ومصنَّفة.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">08</span><h3>السحب والإفلات</h3>
+          <span class="feat-dots"><span class="dot x">—</span><span class="dot x">—</span><span class="dot n">·</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot x">—</span></span>
+        </div>
+        <div class="feat-body">
+          <p><b>نصفها موجود:</b> الإفلات من Explorer إلى NOBA مبنيّ (<code>AllowDrop</code> و<code>OnDragOver</code> و<code>OnDrop</code> في <code>BrowsePage</code>) ولم يُختبَر بيدك. الاتجاه الآخر — السحب من NOBA إلى Explorer — غير موجود، وهو الأصعب تقنيًّا في القائمة كلها.</p>
+          <p class="gate-line"><b>Gate:</b> إفلات أرشيف على النافذة يفتحه ← سحب صفوف من الجدول إلى مجلد على سطح المكتب يكتب الملفات فعلًا.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">09</span><h3>تاريخ التنقّل</h3>
+          <span class="feat-dots"><span class="dot x">—</span><span class="dot x">—</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot x">—</span></span>
+        </div>
+        <div class="feat-body">
+          <p>«لأعلى» و«جذر الأرشيف» وBreadcrumb القابل للنقر تعمل. الناقص تاريخ حقيقي: Back · Forward · <span class="num">Alt+←</span> · <span class="num">Alt+→</span> — مع مراعاة أن السهم المنطقي في RTL ليس السهم الفيزيائي.</p>
+          <p class="gate-line"><b>Gate:</b> فتح عدة مجلدات ثم رجوع وتقدّم دون فقدان حالة التحديد أو موضع التمرير.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">10</span><h3>بحث وترتيب وفلترة</h3>
+          <span class="feat-dots"><span class="dot x">—</span><span class="dot x">—</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot x">—</span></span>
+        </div>
+        <div class="feat-body">
+          <p>البحث يعمل. الناقص الترتيب بالاسم والحجم والمضغوط والتعديل والنوع والسمات، والفلاتر. الأعمدة معرَّفة في مكان واحد داخل <code>BrowsePage</code>، وهذا يجعل الترتيب أرخص مما يبدو.</p>
+          <p class="gate-line"><b>Gate:</b> أرشيف كبير حقيقي ← ترتيب بكل عمود ← النتيجة صحيحة والأداء مقبول.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">11</span><h3>الإضافة لأرشيف قائم</h3>
+          <span class="feat-dots"><span class="dot r">!</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span></span>
+        </div>
+        <div class="feat-body">
+          <p><b>تحذير قبل البدء:</b> <code>ArchiveCapabilities.AddEntries</code> معلَن ومفعَّل في المزوّدَين، لكن تعليق المزوّد نفسه يقول إن معناه هنا «أنتج أرشيفًا جديدًا فيه هذه المداخل» — <b>لا تحديث لأرشيف قائم في مكانه</b>. واجهة تقرأ العلم وتعرض «إضافة ملفات» تكون Mock UI بالتعريف الذي منعناه.</p>
+          <p>لذلك هذه الميزة تبدأ من المحرّك: تحديث حقيقي في المكان، أو إعادة كتابة الأرشيف بشفافية معلَنة للمستخدم. القرار بينهما قرار منتج.</p>
+          <p class="gate-line"><b>Gate:</b> إضافة ملفات لأرشيف موجود ← فحصه ← Round Trip ← فتحه بـ7-Zip والتأكد من سلامة القديم والجديد معًا.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">12</span><h3>كلمة المرور والتشفير</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot p">✓</span></span>
+        </div>
+        <div class="feat-body">
+          <p><b>أقصر مسافة في اللوحة بين «مبنيّ» و«مكتمل».</b> البوابات الأربع الأولى مغلقة بالفعل: <code>IPasswordProvider</code> في المحرّك، <code>DialogPasswordProvider</code> بثمانية اختبارات، <code>WindowDialogHost</code> بحوار WinUI حقيقي لا Stub، وكلمة المرور <code>char[]</code> تُمسَح بعد الاستخدام. الناقص أنها <b>لم تُشغَّل مرّة واحدة</b> — لم نفتح أرشيفًا مشفَّرًا بعد.</p>
+          <p>لذلك أقترح إغلاق بوابتها <b>داخل</b> Drop الفحص: أرشيف مشفَّر واحد يختبر الحوار وكلمة المرور الصحيحة والخاطئة والإلغاء، دون Drop مستقل.</p>
+          <p class="gate-line"><b>Gate:</b> أرشيف مشفَّر حقيقي ← الحوار يظهر ← كلمة صحيحة تفتح ← خاطئة تُعيد السؤال ← الإلغاء لا يتخطّى بصمت.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">13</span><h3>استرجاع الأسماء العربية القديمة</h3>
+          <span class="feat-dots"><span class="dot p">✓</span><span class="dot p">✓</span><span class="dot h">◐</span><span class="dot h">◐</span><span class="dot n">·</span><span class="dot r">!</span><span class="dot p">✓</span></span>
+        </div>
+        <div class="feat-body">
+          <p>فكّ ترميز <code>CP1256</code> واكتشافه مبنيّان ومختبَران — لكن على بايتات <b>مكتوبة داخل الاختبار نفسه</b>. هذا يثبت صحّة فكّ الترميز ولا يثبت شيئًا عن أرشيف WinRAR حقيقي من 2009.</p>
+          <p><b>فجوة واجهة مباشرة:</b> <code>LegacyNameCodePage</code> موجود على <code>ListRequest</code> ولا شيء في الواجهة يمرّره — أي لا يوجد «افتح بترميز…» رغم أن العقد يدعمه.</p>
+          <p class="gate-line"><b>Gate:</b> أرشيف عربي قديم حقيقي منك ← الأسماء تظهر صحيحة ← تُستخرج ← أتحقّق من أسماء الملفات على القرص. <b>لا نعلن هذه الميزة تنافسيًّا قبل ذلك.</b></p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">14</span><h3>RAR مشفَّر</h3>
+          <span class="feat-dots"><span class="dot r">!</span><span class="dot p">✓</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span></span>
+        </div>
+        <div class="feat-body">
+          <p>لا يوجد اختبار واحد لـRAR مشفَّر. وأخطر من ذلك أن <b>فكّ RAR نفسه مشروط ببناء مكتبة 7-Zip المشحونة معك</b>: اختبارات RAR تحتوي <code>Assert.Skip</code> صريحًا حين لا يجد البناء مفكّك RAR.</p>
+          <p class="gate-line"><b>Gate:</b> RAR مشفَّر حقيقي ← List ← Test ← Extract، بكلمة مرور صحيحة ثم خاطئة. ويسبقه إثبات وجود مفكّك RAR أصلًا.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-head">
+          <span class="fid">15</span><h3>التسويق والحزمة</h3>
+          <span class="feat-dots"><span class="dot x">—</span><span class="dot x">—</span><span class="dot x">—</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span><span class="dot n">·</span></span>
+        </div>
+        <div class="feat-body">
+          <p>لا يوجد <code>.wapproj</code> ولا <code>appxmanifest</code> ولا <code>.wxs</code> في الشجرة. MSIX · Installer · تسجيل Explorer · Branding · Licensing · Diagnostics · Release build.</p>
+          <p class="gate-line"><b>Gate:</b> تثبيت نظيف على Windows ← تشغيل من Start ومن Explorer ← لا اعتماد على مجلد البناء.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>7 · التصميم</h2>
+    <p class="intro">
+      كل شاشة جديدة امتداد لنظام Browse القائم، لا شاشة بأسلوب مختلف. هذه ليست تفضيلات بل قيود
+      تُراجَع في كل Drop:
+    </p>
+    <div class="gates">
+      <div class="gate-cell"><span class="g">TABLE</span><p>جدول ستّة أعمدة، رؤوس وصفوف تتشارك التعريف نفسه فلا تنحرف.</p></div>
+      <div class="gate-cell"><span class="g">HIERARCHY</span><p>تدرّج واضح، وحالة تحديد قوية، وحالة focus مرئية.</p></div>
+      <div class="gate-cell"><span class="g">RTL / LTR</span><p>العربية ليست ترجمة. الاتجاه جزء من النموذج، والأزرار والقوائم تنعكس فعلًا.</p></div>
+      <div class="gate-cell"><span class="g">BIDI SAFE</span><p>أسماء الملفات والمسارات معزولة، ولا يختلط رقم بنصّ عربي في نفس الـrun.</p></div>
+      <div class="gate-cell"><span class="g">LATIN DIGITS</span><p>كل قيمة تقنية بأرقام غربية في اللغتين: أحجام، تواريخ، نسب، عدّادات.</p></div>
+      <div class="gate-cell"><span class="g">WCAG AA</span><p>4.5:1 للنص و3:1 للحدود، ولا معنى ينقله اللون وحده.</p></div>
+      <div class="gate-cell"><span class="g">CAPABILITY-DRIVEN</span><p>الواجهة تعرض ما تستطيعه الصيغة فعلًا، والخيار المطفأ يقول سببه.</p></div>
+      <div class="gate-cell"><span class="g">NO FAKE CONTROLS</span><p>لا زر يَعِد بما لا يحدث، ولا عنصر فارغ ينتظر ميزة قادمة.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>8 · طريقة العمل في كل Drop</h2>
+    <p class="intro">عشر خطوات، بهذا الترتيب، بلا استثناء.</p>
+    <div class="rules">
+      <div class="rule-row"><span class="k">1</span><p>تدقيق الحالة الحالية للميزة في الشجرة، لا في هذه الوثيقة.</p></div>
+      <div class="rule-row"><span class="k">2</span><p>تحديد الموجود في المحرّك — بملف وسطر.</p></div>
+      <div class="rule-row"><span class="k">3</span><p>تحديد الناقص.</p></div>
+      <div class="rule-row"><span class="k">4</span><p>تحديد <b>أقل تغيير لازم</b>.</p></div>
+      <div class="rule-row"><span class="k">5</span><p>تصميم الميزة داخل نظام Browse القائم.</p></div>
+      <div class="rule-row"><span class="k">6</span><p>تنفيذ Engine / Seam / Presentation / UI بحسب الحاجة فقط.</p></div>
+      <div class="rule-row"><span class="k">7</span><p>اختبار Linux كامل.</p></div>
+      <div class="rule-row"><span class="k">8</span><p>تسليم أوامر Windows الدقيقة.</p></div>
+      <div class="rule-row"><span class="k">9</span><p>أنت تشغّلها على Windows.</p></div>
+      <div class="rule-row"><span class="k">10</span><p>لا إعلان PASS قبل نتيجتك الحقيقية.</p></div>
+    </div>
+    <p class="intro" style="margin-top:6px"><strong>تقرير نهاية كل Drop، بهذه العناوين حرفيًّا:</strong></p>
+    <div class="gates">
+      <div class="gate-cell"><span class="g">FILES CHANGED</span><p>القائمة كاملة، والملفات مسلَّمة ومكتوبة في مجلدك.</p></div>
+      <div class="gate-cell"><span class="g">ENGINE CHANGES</span><p>ما بُني، أو «لا شيء» صراحةً.</p></div>
+      <div class="gate-cell"><span class="g">SEAM CHANGES</span><p>ما تغيّر في العقد ولماذا.</p></div>
+      <div class="gate-cell"><span class="g">PRESENTATION CHANGES</span><p>الحالات والنماذج الجديدة.</p></div>
+      <div class="gate-cell"><span class="g">UI CHANGES</span><p>ما يراه المستخدم فعلًا.</p></div>
+      <div class="gate-cell"><span class="g">TESTS</span><p>الجديدة بأسمائها ومعرّفاتها.</p></div>
+      <div class="gate-cell"><span class="g">LINUX RESULT</span><p>نتيجة المجموعة كاملة، بما فيها أي فشل سابق للـDrop.</p></div>
+      <div class="gate-cell"><span class="g">WINDOWS COMMAND</span><p>الأمر الدقيق، جاهزًا للّصق.</p></div>
+      <div class="gate-cell"><span class="g">PASS CRITERIA</span><p>ما الذي يجعلها ناجحة، وما الذي يجعلها فاشلة.</p></div>
+      <div class="gate-cell"><span class="g">KNOWN LIMITATIONS</span><p>ما لم أستطع التحقّق منه، مذكورًا لا مسكوتًا عنه.</p></div>
+      <div class="gate-cell"><span class="g">BUILDSTAMP</span><p>معرّف جديد في كل Drop، يظهر في أول سطر من مخرَج البناء.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>9 · قواعد تمنع الانحراف</h2>
+    <div class="rules">
+      <div class="rule-row"><span class="k">A</span><p>لا تعديل على محرّك يعمل لإرضاء واجهة.</p></div>
+      <div class="rule-row"><span class="k">B</span><p>لا تعطيل اختبار ولا تغيير عتبة ولا <code>#pragma</code> ولا <code>NoWarn</code> لتمرير بناء.</p></div>
+      <div class="rule-row"><span class="k">C</span><p>لا إعلان PASS من Linux لشيء لم يُشغَّل على Windows.</p></div>
+      <div class="rule-row"><span class="k">D</span><p>لا صورة HTML تُقدَّم على أنها screenshot حقيقية.</p></div>
+      <div class="rule-row"><span class="k">E</span><p>لا <code>try/catch</code> عام ولا timeout لإخفاء مشكلة.</p></div>
+      <div class="rule-row"><span class="k">F</span><p>كل Drop يغيّر <code>BuildStamp</code> — وقد أثبت هذا نفسه بالفعل حين مرّ بناءان على شجرة قديمة.</p></div>
+      <div class="rule-row"><span class="k">G</span><p>الفرضية الخاطئة تُعلَن خاطئة صراحةً، لا تُدفَن تحت إصلاح جديد.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>10 · سجل المراجعة</h2>
+    <p class="intro">
+      <strong>V3 · 2026-08-24</strong> — تحويل المنهج إلى شرائح رأسية End-to-End بسبع بوابات.
+      أُضيفت الميزة <span class="num">00</span> لأنها مكتملة وكانت خارج القائمة. صُحّحت حالة
+      <span class="num">02</span> من «Engine Ready» إلى «محرّك جاهز وعقد ناقص». وُسمت
+      <span class="num">11</span> و<span class="num">14</span> كمُعلَنتين أقوى مما هما.
+      رُفعت <span class="num">12</span> لتُغلق داخل Drop الفحص. أُنزلت <span class="num">07</span>
+      إلى آخر القائمة.
+    </p>
+    <p class="intro">
+      <strong>V2 · 2026-08-24</strong> — إعادة ترتيب من Engine-first إلى Feature-by-Feature.
+    </p>
+    <p class="foot">NOBA Archive · Master Product &amp; Execution Plan V3 · audited against 2026-08-23-summary-parts · official reference for every drop that follows</p>
+  </section>
+
+</div>

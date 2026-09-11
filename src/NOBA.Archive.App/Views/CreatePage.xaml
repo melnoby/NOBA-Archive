@@ -1,0 +1,153 @@
+<UserControl
+    x:Class="NOBA.Archive.App.Views.CreatePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    mc:Ignorable="d"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+
+    <!--
+        Create. Logical margins throughout, as everywhere else: no Left or Right appears in this file,
+        so the whole screen mirrors with the shell's FlowDirection and nothing has to be re-thought for
+        Arabic. The one exception is the target path, which is a technical value and stays LTR.
+    -->
+    <Grid Padding="20,16" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock
+            x:Name="PageTitle"
+            Grid.Row="0"
+            FontSize="{StaticResource NobaTypeTitleSize}"
+            FontWeight="SemiBold"
+            Foreground="{ThemeResource NobaTextPrimary}" />
+
+        <!-- What goes in. -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <Button x:Name="AddFilesButton" Click="OnAddFiles" Style="{StaticResource NobaPrimaryButtonStyle}" />
+            <Button x:Name="AddFolderButton" Click="OnAddFolder" Style="{StaticResource NobaSecondaryButtonStyle}" />
+            <Button x:Name="RemoveButton" Click="OnRemoveInput" Style="{StaticResource NobaSecondaryButtonStyle}" />
+            <Button x:Name="ClearButton" Click="OnClearInputs" Style="{StaticResource NobaSubtleButtonStyle}" />
+        </StackPanel>
+
+        <!--
+            The input list is itself the drop target. A separate dashed rectangle would be a second
+            place to put files, and would push the list it feeds off the screen; instead the panel the
+            user already reads as "what goes in" is the panel they can drop onto, and its border and
+            fill carry the drag state. Nothing here is decided by colour alone — the glyph and the
+            sentence change with it.
+        -->
+        <Border
+            x:Name="DropZone"
+            Grid.Row="2"
+            AllowDrop="True"
+            DragOver="OnDragOver"
+            DragLeave="OnDragLeave"
+            Drop="OnDrop"
+            CornerRadius="{StaticResource NobaRadiusSm}"
+            BorderThickness="1"
+            BorderBrush="{ThemeResource NobaBorderSubtle}"
+            Background="{ThemeResource NobaSurfaceRaised}">
+            <Grid>
+                <ListView
+                    x:Name="InputList"
+                    SelectionMode="Single"
+                    SelectionChanged="OnInputSelectionChanged"
+                    Padding="6"
+                    FlowDirection="LeftToRight" />
+
+                <!--
+                    Shown when the list is empty, and again over a full list while something is being
+                    dragged. The second case is why it has its own background: an invitation that
+                    vanishes as soon as there is one file in the list is an invitation the user stops
+                    believing in.
+                -->
+                <Border
+                    x:Name="DropHint"
+                    IsHitTestVisible="False"
+                    Background="{ThemeResource NobaSurfaceRaised}"
+                    CornerRadius="{StaticResource NobaRadiusSm}">
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="6">
+                        <TextBlock
+                            x:Name="DropGlyph"
+                            Text="&#xE8B7;"
+                            FontFamily="{StaticResource NobaIconFont}"
+                            FontSize="24"
+                            HorizontalAlignment="Center"
+                            Foreground="{ThemeResource NobaTextSecondary}" />
+
+                        <TextBlock
+                            x:Name="DropText"
+                            HorizontalAlignment="Center"
+                            TextAlignment="Center"
+                            FontSize="{StaticResource NobaTypeBodySize}"
+                            Foreground="{ThemeResource NobaTextPrimary}" />
+
+                        <TextBlock
+                            x:Name="EmptyInputs"
+                            HorizontalAlignment="Center"
+                            TextAlignment="Center"
+                            FontSize="{StaticResource NobaTypeCaptionSize}"
+                            Foreground="{ThemeResource NobaTextSecondary}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Where it goes, what it is called, and how it is packed. -->
+        <Grid Grid.Row="3" ColumnSpacing="12" RowSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBox x:Name="DestinationBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" FlowDirection="LeftToRight" />
+            <Button x:Name="DestinationButton" Grid.Row="0" Grid.Column="1" Click="OnChooseDestination" Style="{StaticResource NobaSecondaryButtonStyle}" />
+            <TextBox x:Name="NameBox" Grid.Row="0" Grid.Column="2" TextChanged="OnNameChanged" />
+
+            <ComboBox x:Name="FormatBox" Grid.Row="1" Grid.Column="0" SelectionChanged="OnFormatChanged" HorizontalAlignment="Stretch" />
+            <ComboBox x:Name="LevelBox" Grid.Row="1" Grid.Column="2" SelectionChanged="OnLevelChanged" HorizontalAlignment="Stretch" />
+
+            <StackPanel Grid.Row="2" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="16">
+                <CheckBox x:Name="SolidBox" Click="OnSolidChanged" />
+                <CheckBox x:Name="OverwriteBox" Click="OnOverwriteChanged" />
+            </StackPanel>
+        </Grid>
+
+        <!-- The target, then the verdict. Both plain text: nothing here is decided by colour alone. -->
+        <StackPanel Grid.Row="4" Spacing="6">
+            <TextBlock
+                x:Name="TargetLine"
+                FlowDirection="LeftToRight"
+                FontSize="{StaticResource NobaTypeCaptionSize}"
+                TextTrimming="CharacterEllipsis"
+                Foreground="{ThemeResource NobaTextSecondary}" />
+
+            <TextBlock
+                x:Name="StatusLine"
+                FontSize="{StaticResource NobaTypeCaptionSize}"
+                TextWrapping="Wrap"
+                Foreground="{ThemeResource NobaTextSecondary}" />
+
+            <Button
+                x:Name="CreateButton"
+                Click="OnCreate"
+                HorizontalAlignment="Stretch"
+                Style="{StaticResource NobaPrimaryButtonStyle}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      Deliberately the platform-neutral TFM even though the engine references NOBA.Archive.Windows.
+      Everything in that project is annotated [SupportedOSPlatform("windows")] and is only ever
+      constructed behind an OperatingSystem.IsWindows() check, so the analyzer proves the guard rather
+      than the TFM doing it. The payoff is that the engine, the CLI and their test suites still run on
+      Linux, which is where a large part of this solution's validation actually happens. Windows is the
+      shipping target; it is not the only place the code has to be executable.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NOBA.Archive.Engine</RootNamespace>
+    <Description>The engine facade: one AddNobaArchiveEngine call that NobaOS, the CLI, and the desktop app all use.</Description>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Security\NOBA.Archive.Security.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Application\NOBA.Archive.Application.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Infrastructure\NOBA.Archive.Infrastructure.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Formats\NOBA.Archive.Formats.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Backends.SevenZip\NOBA.Archive.Backends.SevenZip.csproj" />
+    <ProjectReference Include="..\NOBA.Archive.Windows\NOBA.Archive.Windows.csproj" />
+  </ItemGroup>
+</Project>

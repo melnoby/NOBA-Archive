@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      The COM-lite interop of ADR-0003 option B is function-pointer vtables and [UnmanagedCallersOnly]
+      thunks, which cannot be expressed in safe C#. Unsafe is enabled here and nowhere else in the
+      product, so the blast radius of a pointer mistake is one project.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NobaUsesExtensions>true</NobaUsesExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NOBA.Archive.Core\NOBA.Archive.Core.csproj" />
+  </ItemGroup>
+
+</Project>

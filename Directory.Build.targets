@@ -1,0 +1,51 @@
+<Project>
+
+  <!-- Projects that need Microsoft.Extensions.* set NobaUsesExtensions=true. -->
+  <ItemGroup Condition="'$(NobaUsesExtensions)' == 'true' AND '$(NobaOfflineBuild)' == 'true'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(NobaUsesExtensions)' == 'true' AND '$(NobaOfflineBuild)' != 'true'">
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+
+  <!-- Test projects. Offline: the TestKit harness. Online: xUnit v3. -->
+  <PropertyGroup Condition="'$(NobaTestProject)' == 'true'">
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(NobaTestProject)' == 'true' AND '$(NobaOfflineBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);NOBA_OFFLINE_TESTS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NobaTestProject)' == 'true' AND '$(NobaOfflineBuild)' == 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)tests\OfflineTestMain.cs" Link="OfflineTestMain.cs" />
+  </ItemGroup>
+  <!--
+    xUnit v3 test projects are self-executing console apps. Running them through Microsoft.Testing
+    Platform keeps 'dotnet test' working without a VSTest host, which means one fewer package version
+    to pin and no adapter/runner mismatch to debug.
+  -->
+  <PropertyGroup Condition="'$(NobaTestProject)' == 'true' AND '$(NobaOfflineBuild)' != 'true'">
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!--
+      Test projects only, and deliberately: xunit.v3 ships Roslyn analyzers whose diagnostics are
+      warnings by default. Combined with the solution-wide TreatWarningsAsErrors, a purely stylistic
+      opinion — xUnit1051 alone fires on every call that accepts a CancellationToken — fails the build
+      before a single test runs, which would make the security suites unrunnable for reasons that have
+      nothing to do with security.
+
+      The warnings are NOT suppressed: they still appear in the build log and in scripts/validate.ps1's
+      transcript, and they are counted there. Product code keeps warnings-as-errors unchanged. This is
+      about not letting an assertion-style rule gate correctness validation; revisit once R13 is closed
+      and the real diagnostic list is known rather than guessed at.
+    -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NobaTestProject)' == 'true' AND '$(NobaOfflineBuild)' != 'true'">
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+</Project>

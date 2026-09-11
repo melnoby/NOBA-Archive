@@ -1,0 +1,43 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+
+[*.{cs,csproj,props,targets}]
+indent_style = space
+indent_size = 4
+
+[*.cs]
+# "Queue" is the domain term for the operation queue (ARCHITECTURE.md §7) and reads correctly.
+# Configuring the analyzer is preferable to suppressing it at each use site.
+dotnet_code_quality.CA1711.allowed_suffixes = Queue
+
+# Async correctness and disposal are errors, not suggestions.
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.CA1849.severity = error
+dotnet_diagnostic.CA2213.severity = error
+dotnet_diagnostic.CA1063.severity = error
+
+# Test projects.
+[tests/**/*.cs]
+# Underscored test names are the convention and read better in failure output.
+dotnet_diagnostic.CA1707.severity = none
+# Test methods must be instance methods: both xUnit and the offline harness instantiate the class.
+dotnet_diagnostic.CA1822.severity = none
+# The redaction tests must log a literal secret to prove it never reaches a sink; the "guard the
+# argument" rule would defeat the point of the test.
+dotnet_diagnostic.CA1873.severity = none
+
+# ── Native interop ─────────────────────────────────────────────────────────────
+# Scoped to the one folder that speaks to 7z.dll, and no wider.
+#
+# The identifiers here are deliberately the ones in 7-Zip's own headers - S_OK, VT_BSTR, E_NOINTERFACE,
+# Pointer. A reader checking this against IArchive.h and MyWindows.h should be able to diff the names
+# directly; renaming them to satisfy a .NET convention would trade an auditable mapping for a cosmetic
+# one, on exactly the code where a mistake corrupts the stack rather than throwing.
+[src/NOBA.Archive.Backends.SevenZip/Interop/**.cs]
+dotnet_diagnostic.CA1707.severity = none   # underscores: native constant names
+dotnet_diagnostic.CA1720.severity = none   # "Pointer": it is one
+dotnet_diagnostic.CA1063.severity = none   # native-handle wrappers use a DisposeCore hook

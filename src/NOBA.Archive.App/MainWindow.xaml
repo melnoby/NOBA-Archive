@@ -1,0 +1,296 @@
+<Window
+    x:Class="NOBA.Archive.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:NOBA.Archive.App.Views"
+    mc:Ignorable="d"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+
+    <!--
+        FlowDirection is set on this root Grid, not on the Window: a Window has no FlowDirection, and
+        setting it per page would let two screens disagree. It is assigned once, from the shell's
+        language, in ApplyLanguage().
+    -->
+    <Grid x:Name="Root" Background="{ThemeResource NobaSurfaceBase}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <!-- 2 the running operation, 3 the status bar -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Title bar. The caption buttons are ours, at the logical end of the row, so they sit on the
+            left in Arabic and on the right in English - which the native frame will not do.
+        -->
+        <Grid x:Name="TitleBar" Grid.Row="0" Height="40" Background="{ThemeResource NobaSurfaceRaised}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel x:Name="TitleBarContent" Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Border
+                    Width="22"
+                    Height="22"
+                    CornerRadius="{StaticResource NobaRadiusSm}"
+                    Background="{ThemeResource NobaAccentDefault}">
+                    <TextBlock
+                        Text="N"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource NobaTextOnAccent}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FlowDirection="LeftToRight" />
+                </Border>
+                <TextBlock
+                    x:Name="TitleText"
+                    FontSize="{StaticResource NobaTypeBodySize}"
+                    FontWeight="SemiBold"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource NobaTextPrimary}" />
+            </StackPanel>
+
+            <StackPanel x:Name="CaptionButtons" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button x:Name="MinimiseButton" Click="OnMinimise" Content="&#xE921;" Style="{StaticResource NobaCaptionButtonStyle}" />
+                <Button x:Name="MaximiseButton" Click="OnMaximise" Content="&#xE922;" Style="{StaticResource NobaCaptionButtonStyle}" />
+                <Button x:Name="CloseButton" Click="OnCloseWindow" Content="&#xE8BB;" Style="{StaticResource NobaCloseButtonStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SidebarColumn" Width="212" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Navigation. Logical margins throughout: no Left or Right appears in this file. -->
+            <Border
+                Grid.Column="0"
+                Background="{ThemeResource NobaSurfaceRaised}"
+                BorderBrush="{ThemeResource NobaBorderSubtle}"
+                BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Padding="10,12" Spacing="2">
+                        <RadioButton x:Name="NavBrowse" GroupName="Nav" Checked="OnNavigate" Tag="&#xE8B7;" Style="{StaticResource NobaNavItemStyle}" />
+                        <RadioButton x:Name="NavCreate" GroupName="Nav" Checked="OnNavigate" Tag="&#xE710;" Style="{StaticResource NobaNavItemStyle}" />
+                        <RadioButton x:Name="NavOperations" GroupName="Nav" Checked="OnNavigate" Tag="&#xE895;" Style="{StaticResource NobaNavItemStyle}" />
+                        <RadioButton x:Name="NavSettings" GroupName="Nav" Checked="OnNavigate" Tag="&#xE713;" Style="{StaticResource NobaNavItemStyle}" />
+                    </StackPanel>
+
+                    <!--
+                        Language and theme are not navigation, so a rule separates them rather than a
+                        gap. A gap says "there was nothing more to put here"; a rule says "this is a
+                        different kind of thing".
+                    -->
+                    <StackPanel Grid.Row="1" Padding="10,8,10,12" Spacing="2">
+                        <Border
+                            Height="1"
+                            Margin="4,0,4,8"
+                            Background="{ThemeResource NobaBorderSubtle}" />
+
+                        <Button
+                            x:Name="LanguageButton"
+                            Click="OnToggleLanguage"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Style="{StaticResource NobaSubtleButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock
+                                    Text="&#xE774;"
+                                    FontFamily="{StaticResource NobaIconFont}"
+                                    FontSize="15"
+                                    VerticalAlignment="Center" />
+                                <TextBlock x:Name="LanguageLabel" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button
+                            x:Name="ThemeButton"
+                            Click="OnToggleTheme"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Style="{StaticResource NobaSubtleButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock
+                                    x:Name="ThemeGlyph"
+                                    Text="&#xE793;"
+                                    FontFamily="{StaticResource NobaIconFont}"
+                                    FontSize="15"
+                                    VerticalAlignment="Center" />
+                                <TextBlock x:Name="ThemeLabel" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="1">
+                <views:BrowsePage x:Name="Browse" />
+                <views:CreatePage x:Name="Create" Visibility="Collapsed" />
+                <views:OperationsPage x:Name="Operations" Visibility="Collapsed" />
+            </Grid>
+        </Grid>
+
+        <!--
+            The running operation.
+
+            It lives on the shell rather than inside Browse because an extraction outlives the screen
+            that started it: navigating away has not cancelled anything, and the strip has to keep
+            saying so. Collapsed when nothing is in flight.
+        -->
+        <Border
+            x:Name="OperationStrip"
+            Grid.Row="2"
+            Visibility="Collapsed"
+            Padding="16,10"
+            Background="{ThemeResource NobaSurfaceRaised}"
+            BorderBrush="{ThemeResource NobaBorderSubtle}"
+            BorderThickness="0,1,0,0">
+            <Grid ColumnSpacing="14" RowSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <!-- 3 the failure reason, 4 the destination -->
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                    <TextBlock
+                        x:Name="OperationVerb"
+                        FontSize="{StaticResource NobaTypeBodySize}"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource NobaTextPrimary}" />
+                    <TextBlock
+                        x:Name="OperationTarget"
+                        FontSize="{StaticResource NobaTypeBodySize}"
+                        TextTrimming="CharacterEllipsis"
+                        Foreground="{ThemeResource NobaTextPrimary}" />
+                    <Border
+                        CornerRadius="{StaticResource NobaRadiusSm}"
+                        Padding="7,1"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource NobaAccentSubtle}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock
+                                x:Name="OperationStateGlyph"
+                                FontFamily="{StaticResource NobaIconFont}"
+                                FontSize="11"
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource NobaAccentDefault}" />
+                            <TextBlock
+                                x:Name="OperationStateText"
+                                FontSize="{StaticResource NobaTypeCaptionSize}"
+                                FontWeight="SemiBold"
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource NobaAccentDefault}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Pause / Resume / Cancel. Enabled from the queue's own state, never guessed. -->
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="OperationPauseButton" Click="OnPauseOperation" Style="{StaticResource NobaSecondaryButtonStyle}" />
+                    <Button x:Name="OperationCancelButton" Click="OnCancelOperation" Style="{StaticResource NobaSecondaryButtonStyle}" />
+                    <Button
+                        x:Name="OperationDismissButton"
+                        Click="OnDismissOperation"
+                        Visibility="Collapsed"
+                        Style="{StaticResource NobaSubtleButtonStyle}"
+                        Content="&#xE711;"
+                        FontFamily="{StaticResource NobaIconFont}"
+                        FontSize="12" />
+                </StackPanel>
+
+                <ProgressBar
+                    x:Name="OperationBar"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="2"
+                    Height="4"
+                    Minimum="0"
+                    Maximum="100" />
+
+                <!-- The entry, then the measured facts as fragments. -->
+                <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnSpacing="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        x:Name="OperationItem"
+                        Grid.Column="0"
+                        FlowDirection="LeftToRight"
+                        FontFamily="Cascadia Mono, Consolas"
+                        FontSize="{StaticResource NobaTypeCaptionSize}"
+                        TextTrimming="CharacterEllipsis"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource NobaTextSecondary}" />
+
+                    <StackPanel
+                        x:Name="OperationMeasures"
+                        Grid.Column="1"
+                        Orientation="Horizontal"
+                        Spacing="5"
+                        VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Where the files are going. Left-to-right: it is a path, not prose. -->
+                <TextBlock
+                    x:Name="OperationDestination"
+                    Grid.Row="4"
+                    Grid.ColumnSpan="2"
+                    Visibility="Collapsed"
+                    FlowDirection="LeftToRight"
+                    FontSize="{StaticResource NobaTypeCaptionSize}"
+                    TextTrimming="CharacterEllipsis"
+                    Foreground="{ThemeResource NobaTextSecondary}" />
+
+                <!--
+                    Why a failed operation failed, in the guard's own words. LeftToRight because the
+                    sentence carries a path and a ratio; wrapped because refusing to show the reason in
+                    full is how a security decision gets mistaken for a crash.
+                -->
+                <TextBlock
+                    x:Name="OperationReason"
+                    Grid.Row="3"
+                    Grid.ColumnSpan="2"
+                    Visibility="Collapsed"
+                    FlowDirection="LeftToRight"
+                    FontSize="{StaticResource NobaTypeCaptionSize}"
+                    TextWrapping="Wrap"
+                    Foreground="{ThemeResource NobaStateBlocked}" />
+            </Grid>
+        </Border>
+
+        <!-- Status bar. Same rule as the archive summary: one text block per fragment, so a count and
+             an Arabic word are never shaped in the same paragraph. -->
+        <Border
+            Grid.Row="3"
+            Height="28"
+            Background="{ThemeResource NobaSurfaceRaised}"
+            BorderBrush="{ThemeResource NobaBorderSubtle}"
+            BorderThickness="0,1,0,0">
+            <StackPanel
+                x:Name="StatusParts"
+                Orientation="Horizontal"
+                Spacing="5"
+                Margin="16,0"
+                VerticalAlignment="Center" />
+        </Border>
+    </Grid>
+</Window>

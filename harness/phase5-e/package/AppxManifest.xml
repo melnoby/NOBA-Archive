@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DROP 08 Phase 5 — GATE 2 / E2 SPARSE PACKAGE. HARNESS ONLY. NOT THE PRODUCT PACKAGE.
+
+  This exists to make Explorer activate a COM class through com:SurrogateServer so the process
+  topology can be observed. It is NOT packaging/AppxManifest.xml from §J of the plan, and it must not
+  be promoted into one: the product manifest is required by SHELL-065 to be GENERATED from
+  ShellRegistration constants rather than hand-written, and this file is hand-written.
+
+  Publisher is CN=NOBA-DEV-ONLY and must match the development certificate subject EXACTLY, or
+  Add-AppxPackage fails with a signature error that names neither. run-e2.ps1 checks that before it
+  packs.
+
+  NOTE ON ELEVATION (plan §L.4): there is no RunAs anywhere in this file, and there must never be.
+  The surrogate inherits Explorer's identity, which is the standard user. That is what E2 pass
+  criterion 3 checks.
+-->
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+    xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+    xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+    IgnorableNamespaces="uap uap10 rescap com desktop4 desktop5">
+
+  <Identity
+      Name="NOBA.Archive.Phase5.E2Probe"
+      Publisher="CN=NOBA-DEV-ONLY"
+      Version="0.5.0.0"
+      ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>NOBA Phase 5 E2 isolation probe</DisplayName>
+    <PublisherDisplayName>NOBA (development harness)</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <!--
+      THIS ELEMENT IS WHAT MAKES THE PACKAGE SPARSE, AND ITS ABSENCE COST A WINDOWS RUN.
+      The comment further down already described AllowExternalContent as the thing that lets the
+      payload live outside the package - but the element itself was never written, only the namespace
+      declared. Add-AppxPackage -ExternalLocation then failed with:
+
+        0x80073D2E - The package deployment failed because it must allow external content to be
+                     deployed with an external location.
+
+      run-e2.ps1 now checks for it before packing, because the script is the thing that passes
+      -ExternalLocation and therefore the thing that knows the manifest must permit it.
+    -->
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26200.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Capabilities>
+    <!--
+      Both capabilities come from the canonical Microsoft sparse-package example. runFullTrust is what
+      makes this a desktop package at all; unvirtualizedResources exempts it from registry and file
+      virtualisation, which a COM server reading its payload from an external location needs.
+      Strict necessity of unvirtualizedResources for THIS package shape is not stated anywhere I could
+      find and is recorded AMBIGUOUS in the audit - it is included because every authoritative example
+      includes it, and because omitting it is the untested option.
+    -->
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+
+  <Applications>
+    <!--
+      uap10:AllowExternalContent is what makes this a SPARSE package: the payload stays where the
+      unpackaged build put it, and Add-AppxPackage -ExternalLocation points at that directory. Per
+      ADR-0006 this is the shape the product uses too.
+    -->
+    <Application
+        Id="E2Probe"
+        Executable="noba_e2_host.exe"
+        uap10:TrustLevel="mediumIL"
+        uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+          DisplayName="NOBA Phase 5 E2 isolation probe"
+          Description="Feasibility harness. Does nothing."
+          BackgroundColor="transparent"
+          Square150x150Logo="Assets\Square150x150Logo.png"
+          Square44x44Logo="Assets\Square44x44Logo.png"
+          AppListEntry="none" />
+
+      <Extensions>
+        <!--
+          The COM server. com:SurrogateServer is the element under test: it is what is supposed to
+          load the DLL into dllhost.exe instead of explorer.exe.
+        -->
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="NOBA Phase 5 E2 surrogate">
+              <com:Class Id="17019B66-1E78-459B-92AE-63A440E7C5EA"
+                         Path="noba_e2_stub.dll"
+                         ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+
+        <!--
+          The verb. Registered for files and for folders, so a right-click anywhere in Explorer is
+          enough to activate the handler.
+
+          THE PREFIXES ARE MIXED, AND THAT IS CORRECT. Extension and FileExplorerContextMenus are
+          desktop4; ItemType and Verb are desktop5. FileExplorerContextMenus shipped in desktop4 and
+          ItemType was added in desktop5, so the schema requires exactly this pairing. The first
+          version of this file used desktop5 throughout and makeappx rejected it:
+
+            error C00CE014: Element '{...desktop/windows10/5}Extension' is unexpected according to
+            content model of parent element '{...foundation/windows10}Extensions'.
+        -->
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="NobaE2Probe" Clsid="17019B66-1E78-459B-92AE-63A440E7C5EA" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="NobaE2Probe" Clsid="17019B66-1E78-459B-92AE-63A440E7C5EA" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
