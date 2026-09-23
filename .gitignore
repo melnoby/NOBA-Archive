@@ -98,3 +98,21 @@ NOBA_Archive_Brand_FINAL_LOCKED*/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# MSVC / harness outputs compiled beside their sources
+*.obj
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.res
+
+# Phase-5 harness staging and results
+harness/**/stage/
+harness/**/results/
+harness/**/build/
+artifacts/sparse-stage/
+
+# Explorer scratch folders
+fixtures/New folder*/

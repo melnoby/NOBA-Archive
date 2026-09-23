@@ -1,4 +1,4 @@
-LIBRARY NOBA.Archive.ShellAdapter
+LIBRARY "NOBA.Archive.ShellAdapter.dll"
 EXPORTS
     DllGetClassObject   PRIVATE
     DllCanUnloadNow     PRIVATE

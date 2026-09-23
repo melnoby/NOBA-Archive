@@ -290,6 +290,103 @@ public sealed class SigningStoreTests
         Assert.Contains("carries a PRIVATE KEY", code);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Hardening after the first VM cycles: no second key by accident, no trust by subject alone
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Running the create step twice on the same account refuses instead of minting a second key.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This happened on the test VM: two DEV-ONLY keys in NobaTester's <c>CurrentUser\My</c>. Nothing
+    /// failed - signtool picked one, <c>-Trust</c> had trusted the other, and the 0x800B0109 that
+    /// followed named neither. A store with two keys of the same subject has no "the key".
+    /// </para>
+    /// <para>
+    /// Asserted on the guard, not on its message: the refusal must sit BEFORE
+    /// <c>New-SelfSignedCertificate</c> and must <c>exit 1</c>, so deleting the exit while keeping the
+    /// text fails here. Comments are stripped first so the explanation cannot satisfy the rule.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Creating_a_second_key_is_refused_unless_forced()
+    {
+        var code = Read(CertScript);
+        Assert.Contains("[switch]$Force", code);
+
+        var executable = StripComments(code);
+        var creation = executable.IndexOf("New-SelfSignedCertificate", StringComparison.Ordinal);
+        Assert.True(creation > 0, "New-SelfSignedCertificate was not found");
+
+        // The count is taken from the store signtool will search, through the same helper the
+        // cleanup uses (so an unreadable store stays -1, never "none").
+        var guard = Regex.Match(
+            executable,
+            @"Get-CertCount -StoreName 'My' -Location 'CurrentUser'.*?" +
+            @"if \(\$existingKeys -gt 0 -and -not \$Force\) \{(?<body>[^}]*)\}",
+            RegexOptions.Singleline);
+
+        Assert.True(guard.Success, "the duplicate-key guard was not found");
+        Assert.True(guard.Index < creation, "the duplicate-key guard must run before the key is created");
+        Assert.Contains("exit 1", guard.Groups["body"].Value);
+    }
+
+    /// <summary>
+    /// <c>-Trust</c> binds trust to a thumbprint, not to a subject name and a file path.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CN=NOBA-DEV-ONLY</c> is a string anyone can self-sign, and <c>artifacts\dev-certificate\</c>
+    /// is a build-output folder inside a checkout. A trust step that accepts "a readable certificate
+    /// with the right subject at that path" makes whoever can write there a sideload publisher for
+    /// every account on the machine. The thumbprint the create step printed is the only thing the
+    /// administrator can carry across that is not forgeable by writing a file.
+    /// </para>
+    /// <para>
+    /// Both refusals - no thumbprint given, wrong thumbprint given - must sit inside the trust branch
+    /// and BEFORE <c>$trusted.Add($incoming)</c>, and each must <c>exit 1</c>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Trust_is_bound_to_the_thumbprint_the_create_step_printed()
+    {
+        var code = Read(CertScript);
+        Assert.Contains("[string]$Thumbprint", code);
+
+        var executable = StripComments(code);
+        var trustBranch = Regex.Match(
+            executable,
+            @"if \(\$Trust\) \{(?<before>.*?)\$trusted\.Add\(\$incoming\)",
+            RegexOptions.Singleline);
+        Assert.True(trustBranch.Success, "the -Trust branch (up to the Add) was not found");
+        var before = trustBranch.Groups["before"].Value;
+
+        var missing = Regex.Match(
+            before,
+            @"if \(\[string\]::IsNullOrWhiteSpace\(\$Thumbprint\)\) \{(?<body>[^}]*)\}",
+            RegexOptions.Singleline);
+        Assert.True(missing.Success, "-Trust must refuse when no -Thumbprint is given");
+        Assert.Contains("exit 1", missing.Groups["body"].Value);
+
+        var mismatch = Regex.Match(
+            before,
+            @"if \(\$expectedThumbprint -ne \$incomingThumbprint\) \{(?<body>[^}]*)\}",
+            RegexOptions.Singleline);
+        Assert.True(mismatch.Success, "-Trust must refuse a certificate whose thumbprint differs");
+        Assert.Contains("exit 1", mismatch.Groups["body"].Value);
+
+        // Both sides are normalised the same way, so a thumbprint pasted with spaces or colons from
+        // certmgr compares equal to the store's bare hex.
+        Assert.Contains("$expectedThumbprint = ($Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()", before);
+        Assert.Contains("$incomingThumbprint = ($incoming.Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()", before);
+
+        // The create step hands the operator the exact command, thumbprint included, and the help
+        // shows the same shape - the requirement is not a surprise found on the elevated side.
+        Assert.Contains("-Trust -Thumbprint $($cert.Thumbprint)", code);
+        Assert.Contains(@".\scripts\dev-certificate.ps1 -Trust -Thumbprint <thumbprint>", code);
+    }
+
     /// <summary>
     /// Both halves verify by THUMBPRINT, not by count. "A certificate with this subject is trusted"
     /// and "the certificate that will sign is trusted" are different statements, and only the second

@@ -8,11 +8,14 @@ Older Windows 10 editions no longer receive security updates from Microsoft; the
 about what the app runs on, not an endorsement of running an unsupported OS. See
 [ADR-0010](docs/adr/ADR-0010-minimum-os.md).
 
-> **Current status: Phase 1 delivered — the foundation is built and tested.**
-> 17 projects, 272 passing tests, a clean warnings-as-errors build. There is still **no archive format
-> support**: Phase 1 is the domain model, contracts, DI, configuration, logging, security foundations,
-> test infrastructure, and the `noba-ar` CLI shell. Formats begin in Phase 2.
-> See [docs/PHASE_1_REPORT.md](docs/PHASE_1_REPORT.md).
+> **Current status: Phase 5 — Windows shell integration, not yet installable.**
+> 879 executed test cases across 11 suites, a clean warnings-as-errors build. ZIP/TAR/GZIP (managed)
+> and 7Z/RAR-read (via the bundled 7-Zip backend) all create/extract/test; the WinUI 3 app and the
+> `noba-ar` CLI run on the same engine. The Explorer context menu (classic and Windows 11 modern) is
+> registered by scripts against a DEV-ONLY self-signed certificate — there is no installer yet, no
+> production code-signing certificate, and no `LICENSE`/`NOTICE.txt`. Not a release build; see the
+> phase reports and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) before running it on a machine you
+> care about.
 
 ---
 
@@ -44,7 +47,7 @@ services — designed to be embeddable into NobaOS as a UI-free engine and a scr
 | [TESTING.md](docs/TESTING.md) | Test pyramid, fixture generation, test catalogue, validation commands |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Prerequisites, conventions, phase workflow |
 | [NOBAOS_INTEGRATION.md](docs/NOBAOS_INTEGRATION.md) | Engine library and CLI surfaces for NobaOS |
-| [adr/](docs/adr/) | Architecture decision records (10 records) |
+| [adr/](docs/adr/) | Architecture decision records (11 records) |
 | [PHASE_0_REPORT.md](docs/PHASE_0_REPORT.md) | What Phase 0 delivered, risks, open decisions |
 | [PHASE_1_REPORT.md](docs/PHASE_1_REPORT.md) | What Phase 1 built, what the tests prove, deviations, gate status |
 | [SPIKE_7Z_INTEROP.md](docs/SPIKE_7Z_INTEROP.md) | Can a native backend be driven so we own every destination stream? (yes — with evidence) |
@@ -53,16 +56,16 @@ services — designed to be embeddable into NobaOS as a UI-free engine and a scr
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Architecture & feasibility | **Delivered — awaiting review** |
-| 1 | Solution, DI, logging, config, core model, abstractions, test infrastructure, CLI shell | **Delivered — awaiting review** |
-| 2 | ZIP + the hardened extraction writer | Not started |
-| 3 | 7Z | Not started |
-| 4 | RAR (read-only) | Not started |
-| 5 | Application UI | Not started |
-| 6 | Windows integration | Not started |
-| 7 | Security hardening | Not started |
+| 0 | Architecture & feasibility | **Delivered** |
+| 1 | Solution, DI, logging, config, core model, abstractions, test infrastructure, CLI shell | **Delivered** |
+| 2 | ZIP + the hardened extraction writer | **Delivered** |
+| 3 | 7Z (via the bundled 7-Zip backend) | **Delivered** |
+| 4 | RAR (read-only) | **Delivered** |
+| 5 | Application UI, Explorer context menu (classic + modern) | **In progress** — UI and both menu paths work end to end on a signed-and-registered dev build; no installer |
+| 6 | Windows integration (installer, real signing, NOBA OS handoff) | Not started |
+| 7 | Security hardening | Partially covered by Phase 0–5 work; a dedicated pass has not run |
 | 8 | Performance | Not started |
-| 9 | Packaging & installer | Not started |
+| 9 | Packaging & installer | Not started — no MSI/MSIX installer project exists yet |
 | 10 | Release candidate | Not started |
 
 ## Building
@@ -77,8 +80,9 @@ workload (see [DEVELOPMENT.md](docs/DEVELOPMENT.md)).
 
 ## Third-party components
 
-NOBA Archive will link dynamically against 7-Zip's `7z.dll` (LGPL-2.1-or-later, with BSD and unRAR
-provisions) and use SharpCompress (MIT). Full notices ship with the product in `NOTICE.txt`.
+NOBA Archive links dynamically against 7-Zip's `7z.dll` (LGPL-2.1-or-later, with BSD and unRAR
+provisions) for 7Z and RAR; ZIP, TAR, and GZIP are handled by managed code in this repository.
+`LICENSE` and `NOTICE.txt` do not exist yet — tracked before any public release.
 
 **RAR notice:** the UnRAR-derived code used for RAR extraction may not be used to develop a
 RAR (WinRAR) compatible archiver. NOBA Archive does not and will not create RAR archives.

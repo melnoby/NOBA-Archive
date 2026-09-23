@@ -69,6 +69,18 @@
 .PARAMETER CertificatePath
     Where the public .cer is written by the create step and read by -Trust.
 
+.PARAMETER Force
+    CREATE step only. Proceed even though a DEV-ONLY key already exists in CurrentUser\My. Without
+    it, a second run refuses rather than leaving two signing keys with the same subject and no way to
+    tell signtool which one is meant - this is the duplicate-key state running the create step twice
+    on a fresh account has produced before. Remove the old key first instead, when possible.
+
+.PARAMETER Thumbprint
+    -Trust only, and required. The thumbprint the CREATE step printed. Binds trust to that specific
+    key rather than to the subject name alone - a self-signed certificate with subject CN=NOBA-DEV-ONLY
+    is trivial for anyone to mint, so a Subject match by itself proves nothing about which key is being
+    trusted.
+
 .EXAMPLE
     .\scripts\dev-certificate.ps1 -Report
 
@@ -77,8 +89,8 @@
     .\scripts\dev-certificate.ps1
 
 .EXAMPLE
-    # elevated, any administrator
-    .\scripts\dev-certificate.ps1 -Trust
+    # elevated, any administrator - <thumbprint> is what the create step printed
+    .\scripts\dev-certificate.ps1 -Trust -Thumbprint <thumbprint>
 
 .EXAMPLE
     # elevated for the machine stores; run again as the signing user for theirs
@@ -89,6 +101,8 @@ param(
     [switch]$Trust,
     [switch]$Remove,
     [switch]$Report,
+    [switch]$Force,
+    [string]$Thumbprint,
     [string]$CertificatePath
 )
 
@@ -337,6 +351,28 @@ if ($Trust) {
     Write-Ok "read: $($incoming.Subject)  thumbprint $($incoming.Thumbprint)"
     Write-Host "      not after: $($incoming.NotAfter.ToString('yyyy-MM-dd'))"
 
+    # A matching Subject proves nothing: CN=NOBA-DEV-ONLY is a name anyone can self-sign, and this
+    # file's path (under artifacts\, inside a checkout) is not a secret. Trust is bound to the
+    # THUMBPRINT the create step printed, not to whatever certificate happens to sit at this path.
+    if ([string]::IsNullOrWhiteSpace($Thumbprint)) {
+        Write-Bad 'refusing: -Thumbprint was not given.'
+        Write-Host '      A file at this path is not evidence of which key it is - anyone who can write'
+        Write-Host "      to this path can drop a different self-signed $Subject certificate here and"
+        Write-Host '      have it trusted machine-wide. Pass the thumbprint the CREATE step printed (or'
+        Write-Host '      that -Report on the signing user''s machine shows):'
+        Write-Host '        .\scripts\dev-certificate.ps1 -Trust -Thumbprint <thumbprint-from-create-step>'
+        exit 1
+    }
+    $expectedThumbprint = ($Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+    $incomingThumbprint = ($incoming.Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+    if ($expectedThumbprint -ne $incomingThumbprint) {
+        Write-Bad "refusing: the file's thumbprint is $($incoming.Thumbprint), not the requested $Thumbprint."
+        Write-Host '      This is exactly the check that stops a substituted certificate - confirm the'
+        Write-Host '      thumbprint with whoever ran the create step before trusting a different key.'
+        exit 1
+    }
+    Write-Ok "thumbprint matches: trusting $($incoming.Thumbprint) and no other key"
+
     $trusted = [System.Security.Cryptography.X509Certificates.X509Store]::new('TrustedPeople', 'LocalMachine')
     $trusted.Open('ReadWrite')
     try { $trusted.Add($incoming) } finally { try { $trusted.Close() } catch { } }
@@ -387,6 +423,24 @@ if ($before.Unknown -gt 0) {
     Write-Host ''
     Write-Bad 'a store could not be read. Refusing to add a certificate to a state that cannot be described.'
     exit 1
+}
+
+# A second key with the same subject in the same store is not a redundant copy - signtool and
+# -Trust both search by subject/thumbprint, and a caller who does not pass the right thumbprint can
+# end up signing with, or trusting, whichever one the store happens to return first. This is the
+# duplicate-key state a repeated create on the same account has produced before.
+$existingKeys = Get-CertCount -StoreName 'My' -Location 'CurrentUser'
+if ($existingKeys -gt 0 -and -not $Force) {
+    Write-Host ''
+    Write-Bad "$existingKeys DEV-ONLY key(s) already in CurrentUser\My for $(Get-Identity)."
+    Write-Host '      Creating another leaves two signing keys with the same subject and no reliable way'
+    Write-Host '      to tell which one signtool or -Trust will pick. Remove the old one first:'
+    Write-Host '        .\scripts\dev-certificate.ps1 -Remove        # elevated, then again as this user'
+    Write-Host '      or pass -Force to add another key deliberately (not recommended).'
+    exit 1
+}
+if ($existingKeys -gt 0 -and $Force) {
+    Write-Note "$existingKeys existing DEV-ONLY key(s) in CurrentUser\My - -Force given, creating another anyway."
 }
 
 Write-Host ''
@@ -464,7 +518,7 @@ Write-Host '      Nothing on this machine trusts this certificate until -Trust r
 Write-Host '      would fail 0x800B0109.'
 Write-Host ''
 Write-Host 'NEXT - in an ELEVATED window (any administrator):'
-Write-Host "  .\scripts\dev-certificate.ps1 -Trust"
+Write-Host "  .\scripts\dev-certificate.ps1 -Trust -Thumbprint $($cert.Thumbprint)"
 Write-Host ''
 Write-Host "  then back here, as $(Get-Identity), NOT elevated:"
 Write-Host '  .\scripts\modern-menu-register.ps1'
