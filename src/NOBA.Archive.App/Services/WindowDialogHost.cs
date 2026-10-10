@@ -16,7 +16,11 @@ namespace NOBA.Archive.App.Services;
 /// <para>
 /// <b>Thread.</b> The engine asks for a password from whichever worker thread is decoding. Touching a
 /// <see cref="ContentDialog"/> from there is an immediate <c>RPC_E_WRONGTHREAD</c>, so the work is
-/// enqueued on the window's dispatcher and awaited through a completion source.
+/// enqueued on the window's dispatcher and awaited through a completion source. This extends to
+/// reading <c>Window.Content</c> or <see cref="XamlRoot"/> at all, not only to constructing or showing
+/// the dialog: both are XAML properties, and a mere read of either from the calling thread crashed in
+/// <c>combase.dll</c> the first time a password-protected archive was opened for real, rather than
+/// throwing synchronously where it would have been obvious.
 /// </para>
 /// <para>
 /// <b>Order.</b> WinUI permits exactly one open <see cref="ContentDialog"/> per window; a second one
@@ -97,17 +101,15 @@ internal sealed class WindowDialogHost : IPasswordDialog, IConflictDialog, IExtr
         where TResult : class
     {
         var current = _window();
-        var root = current?.Content?.XamlRoot;
-        if (current is null || root is null)
+        if (current is null)
         {
             return null;
         }
 
-        // Copied into non-nullable locals before the lambdas capture them: a captured nullable local
+        // Copied into a non-nullable local before the lambda captures it: a captured nullable local
         // loses its proven state at the capture boundary, and the alternative is a scatter of ! that
         // says nothing about why.
         MainWindow window = current;
-        XamlRoot xamlRoot = root;
 
         // Take the tail of the queue and become the new tail, in one step, before waiting on anything.
         var mine = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -131,9 +133,23 @@ internal sealed class WindowDialogHost : IPasswordDialog, IConflictDialog, IExtr
             {
                 try
                 {
+                    // XamlRoot is a XAML property, read here and nowhere earlier: the caller is
+                    // whichever worker thread the engine is decoding on, and touching Content or
+                    // XamlRoot from there - even just to read them - is RPC_E_WRONGTHREAD
+                    // (0x8001010E). It does not throw synchronously on the read; it surfaces later as
+                    // a COM marshalling crash in combase.dll, which is what sent us back here.
+                    var root = window.Content?.XamlRoot;
+                    if (root is null)
+                    {
+                        // The window is there but has nothing to anchor a dialog to yet. Nobody is
+                        // going to answer.
+                        completion.TrySetResult(null);
+                        return;
+                    }
+
                     var dialog = create(window);
                     opened = dialog;
-                    dialog.XamlRoot = xamlRoot;
+                    dialog.XamlRoot = root;
 
                     // The dialog lives in a popup outside the shell's element tree, so it inherits
                     // nothing from it. Carrying the theme across is what stops a dark window raising a
