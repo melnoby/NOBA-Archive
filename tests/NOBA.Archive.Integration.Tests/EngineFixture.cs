@@ -29,7 +29,10 @@ internal sealed class EngineFixture : IAsyncDisposable
     }
 
     /// <summary>A fixture that supplies one password, for the encrypted-archive tests.</summary>
-    public EngineFixture(string? password, ConflictPolicy conflictPolicy = ConflictPolicy.Fail)
+    public EngineFixture(
+        string? password,
+        ConflictPolicy conflictPolicy = ConflictPolicy.Fail,
+        IFileSystem? fileSystemOverride = null)
     {
         var services = new ServiceCollection();
         services.AddLogging(static b => b.SetMinimumLevel(LogLevel.Critical));
@@ -42,6 +45,15 @@ internal sealed class EngineFixture : IAsyncDisposable
         if (password is not null)
         {
             services.AddSingleton<IPasswordProvider>(new FixedPasswordProvider(password));
+        }
+
+        if (fileSystemOverride is not null)
+        {
+            // AddNobaArchiveEngine registers the real filesystem with TryAddSingleton, so this
+            // later registration is what the container actually resolves — a host-style decoration,
+            // not a bypass of the production wiring. Used to inject disk-full / permission-denied
+            // faults at the one seam (IFileSystem) real I/O failures would actually arrive through.
+            services.AddSingleton(fileSystemOverride);
         }
 
         _services = services.BuildServiceProvider();
