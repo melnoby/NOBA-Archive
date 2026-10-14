@@ -34,6 +34,19 @@
                 <Button x:Name="OpenButton" Click="OnOpen" Style="{StaticResource NobaSecondaryButtonStyle}" />
                 <Button x:Name="ExtractSelectedButton" Click="OnExtractSelected" Style="{StaticResource NobaSecondaryButtonStyle}" />
                 <Button x:Name="TestButton" Click="OnTest" Style="{StaticResource NobaSecondaryButtonStyle}" IsEnabled="False" />
+
+                <Border Width="1" Height="20" Margin="4,0" Background="{ThemeResource NobaBorderSubtle}" />
+
+                <!--
+                    Managing the open archive's own entries - DROP 03's WinUI half. Disabled rather than
+                    hidden when the format cannot be rewritten or nothing is selected, following the same
+                    rule TestButton already applies: the control stays on screen so its tooltip can say
+                    why, and a format that gains the capability later lights the same button up.
+                -->
+                <Button x:Name="AddFilesButton" Click="OnAddFiles" Style="{StaticResource NobaSecondaryButtonStyle}" IsEnabled="False" />
+                <Button x:Name="AddFolderButton" Click="OnAddFolder" Style="{StaticResource NobaSecondaryButtonStyle}" IsEnabled="False" />
+                <Button x:Name="RemoveButton" Click="OnRemoveSelected" Style="{StaticResource NobaSecondaryButtonStyle}" IsEnabled="False" />
+                <Button x:Name="RenameButton" Click="OnRenameSelected" Style="{StaticResource NobaSecondaryButtonStyle}" IsEnabled="False" />
             </StackPanel>
 
             <!--

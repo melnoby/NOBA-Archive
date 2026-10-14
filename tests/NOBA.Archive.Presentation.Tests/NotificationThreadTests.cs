@@ -200,5 +200,18 @@ public sealed class NotificationThreadTests
             await Task.Delay(20, cancellationToken).ConfigureAwait(false);
             return new ArchiveTestResult { Status = ArchiveTestStatus.Valid };
         }
+
+        public OperationId StartManage(
+            string archivePath,
+            IReadOnlyList<string> entriesToRemove,
+            IReadOnlyList<EntryRenameRequest> entriesToRename,
+            IReadOnlyList<string> sourcesToAdd,
+            CompressionOptions options) => _ids.Next(OperationType.Add);
+
+        public async Task<ManageOutcome?> WaitForManageAsync(OperationId id, CancellationToken cancellationToken)
+        {
+            await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+            return new ManageOutcome { ArchivePath = "out.7z" };
+        }
     }
 }

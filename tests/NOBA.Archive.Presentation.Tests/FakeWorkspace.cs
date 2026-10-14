@@ -229,6 +229,7 @@ internal sealed class FakeWorkspace : IArchiveWorkspace
             id,
             TestsStarted.Contains(id) ? OperationType.Test
                 : CreatesStarted.Contains(id) ? OperationType.Create
+                : ManagesStarted.Contains(id) ? OperationType.Add
                 : OperationType.Extract,
             state,
             _names.GetValueOrDefault(id.Value, "fake.7z"),
@@ -380,6 +381,71 @@ internal sealed class FakeWorkspace : IArchiveWorkspace
         Transition(id, OperationState.Completed);
         return Task.FromResult<CreateOutcome?>(
             CreateResult ?? new CreateOutcome { ArchivePath = LastCreateTarget ?? "out.7z", EntriesAdded = 1 });
+    }
+
+    // ---------- manage (add / remove / rename entries in an existing archive) ----------
+
+    /// <summary>Ids handed out by <see cref="StartManage"/>.</summary>
+    public List<OperationId> ManagesStarted { get; } = [];
+
+    public string? LastManageArchivePath { get; private set; }
+
+    public IReadOnlyList<string>? LastManageEntriesToRemove { get; private set; }
+
+    public IReadOnlyList<EntryRenameRequest>? LastManageEntriesToRename { get; private set; }
+
+    public IReadOnlyList<string>? LastManageSourcesToAdd { get; private set; }
+
+    public CompressionOptions? LastManageOptions { get; private set; }
+
+    public ManageOutcome? ManageResult { get; set; }
+
+    public OperationId StartManage(
+        string archivePath,
+        IReadOnlyList<string> entriesToRemove,
+        IReadOnlyList<EntryRenameRequest> entriesToRename,
+        IReadOnlyList<string> sourcesToAdd,
+        CompressionOptions options)
+    {
+        LastManageArchivePath = archivePath;
+        LastManageEntriesToRemove = entriesToRemove;
+        LastManageEntriesToRename = entriesToRename;
+        LastManageSourcesToAdd = sourcesToAdd;
+        LastManageOptions = options;
+
+        var id = _ids.Next(OperationType.Add);
+        ManagesStarted.Add(id);
+        Started.Add(id);
+        _names[id.Value] = System.IO.Path.GetFileName(archivePath);
+        Transition(id, OperationState.Running);
+        return id;
+    }
+
+    public Task<ManageOutcome?> WaitForManageAsync(OperationId id, CancellationToken cancellationToken)
+    {
+        if (CancelNextOperation)
+        {
+            CancelNextOperation = false;
+            Transition(id, OperationState.Cancelled);
+            return Task.FromResult<ManageOutcome?>(null);
+        }
+
+        if (FailNextOperation)
+        {
+            FailNextOperation = false;
+            Transition(id, OperationState.Failed);
+            return Task.FromResult<ManageOutcome?>(null);
+        }
+
+        if (_states.TryGetValue(id.Value, out var state)
+            && state is OperationState.Cancelled or OperationState.Failed)
+        {
+            return Task.FromResult<ManageOutcome?>(null);
+        }
+
+        Transition(id, OperationState.Completed);
+        return Task.FromResult<ManageOutcome?>(
+            ManageResult ?? new ManageOutcome { ArchivePath = LastManageArchivePath ?? "out.7z" });
     }
 
     /// <summary>Builds a file entry with a validated path.</summary>

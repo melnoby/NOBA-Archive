@@ -31,6 +31,7 @@ internal sealed class EngineWorkspace : IArchiveWorkspace
     private readonly ExtractArchiveHandler _extract;
     private readonly TestArchiveHandler _test;
     private readonly CreateArchiveHandler _create;
+    private readonly ManageArchiveHandler _manage;
     private readonly IOperationQueue _queue;
 
     /// <summary>
@@ -44,6 +45,7 @@ internal sealed class EngineWorkspace : IArchiveWorkspace
     private readonly ConcurrentDictionary<string, ExtractOutcome> _outcomes = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ArchiveTestResult> _testResults = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, CreateOutcome> _created = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, ManageOutcome> _managed = new(StringComparer.Ordinal);
 
     public EngineWorkspace(
         IArchiveProviderRegistry registry,
@@ -51,6 +53,7 @@ internal sealed class EngineWorkspace : IArchiveWorkspace
         ExtractArchiveHandler extract,
         TestArchiveHandler test,
         CreateArchiveHandler create,
+        ManageArchiveHandler manage,
         IOperationQueue queue)
     {
         ArgumentNullException.ThrowIfNull(registry);
@@ -58,12 +61,14 @@ internal sealed class EngineWorkspace : IArchiveWorkspace
         ArgumentNullException.ThrowIfNull(extract);
         ArgumentNullException.ThrowIfNull(test);
         ArgumentNullException.ThrowIfNull(create);
+        ArgumentNullException.ThrowIfNull(manage);
         ArgumentNullException.ThrowIfNull(queue);
 
         _registry = registry;
         _list = list;
         _extract = extract;
         _create = create;
+        _manage = manage;
         _test = test;
         _queue = queue;
     }
@@ -285,5 +290,96 @@ internal sealed class EngineWorkspace : IArchiveWorkspace
     {
         await _queue.WaitForCompletionAsync(id, cancellationToken).ConfigureAwait(false);
         return _created.TryRemove(id.Value, out var outcome) ? outcome : null;
+    }
+
+    /// <summary>
+    /// Enqueues a rewrite of the open archive: adds, removals, and renames in one pass.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="OperationType.Add"/>, the same type <c>EngineFixture.ManageAsync</c> uses in the
+    /// integration suite: the queue has no separate type for "update", and Add is the closest of the
+    /// existing ones to what this does to the operations list — it ends with more, fewer, or
+    /// differently-named entries than it started with, never a parallel kind of result to display.
+    /// </remarks>
+    public OperationId StartManage(
+        string archivePath,
+        IReadOnlyList<string> entriesToRemove,
+        IReadOnlyList<EntryRenameRequest> entriesToRename,
+        IReadOnlyList<string> sourcesToAdd,
+        CompressionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(entriesToRemove);
+        ArgumentNullException.ThrowIfNull(entriesToRename);
+        ArgumentNullException.ThrowIfNull(sourcesToAdd);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var request = BuildManageRequest(archivePath, entriesToRemove, entriesToRename, sourcesToAdd, options);
+
+        return _queue.Enqueue(new OperationRequest(
+            OperationType.Add,
+            Path.GetFileName(archivePath),
+            async (context, cancellationToken) =>
+            {
+                var outcome = await _manage
+                    .HandleAsync(request, context.Id, context.Progress, context.PauseToken, cancellationToken)
+                    .ConfigureAwait(false);
+
+                _managed[context.Id.Value] = outcome;
+            })
+        {
+            Destination = archivePath,
+        });
+    }
+
+    public async Task<ManageOutcome?> WaitForManageAsync(OperationId id, CancellationToken cancellationToken)
+    {
+        await _queue.WaitForCompletionAsync(id, cancellationToken).ConfigureAwait(false);
+        return _managed.TryRemove(id.Value, out var outcome) ? outcome : null;
+    }
+
+    /// <summary>
+    /// Turns the screen's strings into a request the engine will accept.
+    /// </summary>
+    /// <remarks>
+    /// Every path that cannot be represented as an <see cref="ArchivePath"/> is dropped here rather than
+    /// passed through malformed — the handler would refuse it again on its own account as a mismatched
+    /// entry, with a less specific message, so there is nothing gained by forwarding it. A static method,
+    /// like <see cref="BuildExtractRequest"/> beside it: a pure translation, reading nothing from this
+    /// adapter.
+    /// </remarks>
+    private static ManageRequest BuildManageRequest(
+        string archivePath,
+        IReadOnlyList<string> entriesToRemove,
+        IReadOnlyList<EntryRenameRequest> entriesToRename,
+        IReadOnlyList<string> sourcesToAdd,
+        CompressionOptions options)
+    {
+        var removals = new List<ArchivePath>(entriesToRemove.Count);
+        foreach (var candidate in entriesToRemove)
+        {
+            if (ArchivePath.TryCreate(candidate, out var path, out _))
+            {
+                removals.Add(path);
+            }
+        }
+
+        var renames = new List<EntryRename>(entriesToRename.Count);
+        foreach (var candidate in entriesToRename)
+        {
+            if (ArchivePath.TryCreate(candidate.From, out var from, out _)
+                && ArchivePath.TryCreate(candidate.To, out var to, out _))
+            {
+                renames.Add(new EntryRename(from, to));
+            }
+        }
+
+        return new ManageRequest
+        {
+            ArchivePath = archivePath,
+            Options = options,
+            EntriesToRemove = removals,
+            EntriesToRename = renames,
+            SourcesToAdd = [.. sourcesToAdd],
+        };
     }
 }

@@ -131,4 +131,35 @@ public interface IArchiveWorkspace
 
     /// <summary>Completes when the creation reaches a terminal state. Null if it did not produce one.</summary>
     Task<CreateOutcome?> WaitForCreateAsync(OperationId id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Starts rewriting an open archive — adding, removing, and renaming entries — and returns at once
+    /// with its identity.
+    /// </summary>
+    /// <remarks>
+    /// Same shape as creation and extraction, and for the same reason: a rewrite walks every surviving
+    /// entry before anything is published, which on a large archive is long enough that the user must
+    /// be able to watch it and stop it. Paths travel as raw strings, exactly as <see cref="StartExtract"/>
+    /// already does — turning them into <see cref="Core.Primitives.ArchivePath"/> is the engine's job,
+    /// and a string that cannot be represented is refused there, not guessed at here.
+    /// </remarks>
+    OperationId StartManage(
+        string archivePath,
+        IReadOnlyList<string> entriesToRemove,
+        IReadOnlyList<EntryRenameRequest> entriesToRename,
+        IReadOnlyList<string> sourcesToAdd,
+        CompressionOptions options);
+
+    /// <summary>Completes when the rewrite reaches a terminal state. Null if it did not produce one.</summary>
+    Task<ManageOutcome?> WaitForManageAsync(OperationId id, CancellationToken cancellationToken);
 }
+
+/// <summary>One entry's current and intended path, as raw strings from the screen.</summary>
+/// <remarks>
+/// Deliberately not <see cref="EntryRename"/>: that record carries an already-validated
+/// <see cref="Core.Primitives.ArchivePath"/> on each side, which is an engine concern. The screen only
+/// knows the path as it was displayed; turning it into something the engine will accept — or refusing
+/// it — happens below this seam, the same way <see cref="IArchiveWorkspace.StartExtract"/> already
+/// treats a selection as strings until it reaches the adapter.
+/// </remarks>
+public sealed record EntryRenameRequest(string From, string To);

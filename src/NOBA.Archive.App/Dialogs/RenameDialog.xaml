@@ -1,0 +1,31 @@
+<ContentDialog
+    x:Class="NOBA.Archive.App.Dialogs.RenameDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    DefaultButton="Primary"
+    Background="{ThemeResource NobaSurfaceRaised}"
+    BorderBrush="{ThemeResource NobaBorderSubtle}">
+
+    <StackPanel Spacing="12" MinWidth="380">
+        <TextBlock
+            x:Name="BodyText"
+            TextWrapping="Wrap"
+            Foreground="{ThemeResource NobaTextPrimary}" />
+
+        <StackPanel Spacing="6">
+            <TextBlock
+                x:Name="FieldLabel"
+                FontSize="{StaticResource NobaTypeCaptionSize}"
+                Foreground="{ThemeResource NobaTextSecondary}" />
+
+            <!--
+                The name is a path segment, not prose: it flows left to right whatever the window's
+                language is, exactly like the archive and entry lines in the password dialog do.
+            -->
+            <TextBox
+                x:Name="NameField"
+                FlowDirection="LeftToRight"
+                TextChanged="OnNameChanged" />
+        </StackPanel>
+    </StackPanel>
+</ContentDialog>

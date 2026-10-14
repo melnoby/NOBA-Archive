@@ -280,10 +280,13 @@ public sealed class CreateWorkflowTests
         Assert.True(sevenZip.CanConfigureCompression);
         Assert.False(sevenZip.IsReadOnly);
 
-        // Not implemented, and therefore not claimed: removing and renaming inside an existing 7z.
-        Assert.False(sevenZip.CanRemove);
-        Assert.False(sevenZip.CanRename);
-        Assert.False(sevenZip.CanUpdate);
+        // DROP 03: there is still no native in-place update for 7z, but removing and renaming are now
+        // accomplished by rewriting the archive (open, extract what survives, create a fresh one) —
+        // ManageArchiveHandler's own job, not a provider promise. 7z has every raw capability that
+        // rewrite needs (Open|ListEntries|Extract|Create|AddEntries), so the report claims it.
+        Assert.True(sevenZip.CanRemove);
+        Assert.True(sevenZip.CanRename);
+        Assert.True(sevenZip.CanUpdate);
         Assert.False(sevenZip.CanSplit);
 
         var zip = workspace.ReportFor(ArchiveFormat.Zip);

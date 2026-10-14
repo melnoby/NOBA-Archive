@@ -82,6 +82,37 @@ public sealed class LocalizedStrings
 
     public string GuessedEncodingWarning => this["warning.guessedEncoding"];
 
+    // Browse - managing an open archive's entries (add / remove / rename). "Add files", "Add folder"
+    // and "Remove" reuse the Create screen's own words below: the verb means the same thing in both
+    // places, and a second key for the same text is a second place a translation can drift.
+    public string BrowseRename => this["browse.rename"];
+
+    /// <summary>Composed with how many entries were selected. Takes one argument.</summary>
+    public string ManageRemoveTitle => this["manage.removeTitle"];
+
+    /// <summary>Composed with how many entries were selected. Takes one argument.</summary>
+    public string ManageRemoveBody => this["manage.removeBody"];
+
+    public string ManageRemoveConfirm => this["manage.removeConfirm"];
+
+    public string ManageRemoveCancel => this["manage.removeCancel"];
+
+    public string ManageRenameTitle => this["manage.renameTitle"];
+
+    public string ManageRenameBody => this["manage.renameBody"];
+
+    public string ManageRenameField => this["manage.renameField"];
+
+    public string ManageRenameConfirm => this["manage.renameConfirm"];
+
+    public string ManageRenameCancel => this["manage.renameCancel"];
+
+    public string ManageDone => this["manage.done"];
+
+    public string ManageCancelled => this["manage.cancelled"];
+
+    public string ManageFailed => this["manage.failed"];
+
     // Create
     public string CreateAddFiles => this["create.addFiles"];
 
@@ -417,6 +448,19 @@ public sealed class LocalizedStrings
         ["state.blocked"] = "مرفوض",
         ["state.encrypted"] = "مشفَّر",
         ["warning.guessedEncoding"] = "ترميز الأسماء مُخمَّن — قد تظهر الأسماء خطأ.",
+        ["browse.rename"] = "إعادة تسمية",
+        ["manage.removeTitle"] = "إزالة {0} من الأرشيف",
+        ["manage.removeBody"] = "سيُعاد بناء الأرشيف بالكامل بعد إزالة هذه العناصر. لا يتأثر الأرشيف الأصلي إذا فشلت العملية.",
+        ["manage.removeConfirm"] = "إزالة",
+        ["manage.removeCancel"] = "إلغاء",
+        ["manage.renameTitle"] = "إعادة تسمية مدخل",
+        ["manage.renameBody"] = "اختر اسمًا جديدًا لهذا المدخل.",
+        ["manage.renameField"] = "الاسم الجديد",
+        ["manage.renameConfirm"] = "إعادة التسمية",
+        ["manage.renameCancel"] = "إلغاء",
+        ["manage.done"] = "تم تحديث الأرشيف",
+        ["manage.cancelled"] = "أُلغي التحديث — لم يتغيّر الأرشيف",
+        ["manage.failed"] = "فشل تحديث الأرشيف",
         ["create.addFiles"] = "إضافة ملفات",
         ["create.addFolder"] = "إضافة مجلد",
         ["create.remove"] = "إزالة",
@@ -587,6 +631,19 @@ public sealed class LocalizedStrings
         ["state.blocked"] = "Blocked",
         ["state.encrypted"] = "Encrypted",
         ["warning.guessedEncoding"] = "Entry names were decoded by guesswork and may be wrong.",
+        ["browse.rename"] = "Rename",
+        ["manage.removeTitle"] = "Remove {0} from the archive",
+        ["manage.removeBody"] = "The archive will be rebuilt in full once these items are removed. The original is untouched if the operation fails.",
+        ["manage.removeConfirm"] = "Remove",
+        ["manage.removeCancel"] = "Cancel",
+        ["manage.renameTitle"] = "Rename entry",
+        ["manage.renameBody"] = "Choose a new name for this entry.",
+        ["manage.renameField"] = "New name",
+        ["manage.renameConfirm"] = "Rename",
+        ["manage.renameCancel"] = "Cancel",
+        ["manage.done"] = "Archive updated",
+        ["manage.cancelled"] = "Update cancelled - the archive is unchanged",
+        ["manage.failed"] = "Archive update failed",
                 ["create.addFiles"] = "Add files",
         ["create.addFolder"] = "Add folder",
         ["create.remove"] = "Remove",

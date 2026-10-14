@@ -137,6 +137,9 @@ public sealed class BrowseViewModel : ObservableObject
                 Raise(nameof(CanExtractSelection));
                 Raise(nameof(CanExtractAll));
                 Raise(nameof(CanTest));
+                Raise(nameof(CanAddEntries));
+                Raise(nameof(CanRemoveSelected));
+                Raise(nameof(CanRenameSelected));
             }
         }
     }
@@ -202,6 +205,43 @@ public sealed class BrowseViewModel : ObservableObject
     /// </remarks>
     public FormatCapabilityReport? FormatReport =>
         _format is { } format ? _workspace.ReportFor(format) : null;
+
+    /// <summary>
+    /// Whether files or folders may be added to the open archive.
+    /// </summary>
+    /// <remarks>
+    /// Gated on <see cref="FormatCapabilityReport.CanUpdate"/>, not <see cref="FormatCapabilityReport.CanAdd"/>:
+    /// adding to an archive that already exists goes through the same rewrite remove and rename do —
+    /// <c>ManageArchiveHandler</c> requires its full <c>RewriteRequirements</c> set no matter which of
+    /// the three the request actually asks for — so the gate here has to be the one that matches what
+    /// the handler will actually demand, not the narrower flag Create-time "may this format hold more
+    /// than one member" asks.
+    /// </remarks>
+    public bool CanAddEntries => HasArchive && !IsBusy && FormatReport?.CanUpdate == true;
+
+    /// <summary>Whether the current selection could be removed from the open archive.</summary>
+    public bool CanRemoveSelected =>
+        HasArchive && !IsBusy && FormatReport?.CanUpdate == true && Selection.Any(HasRemovableFile);
+
+    /// <summary>
+    /// Whether the current selection is exactly one entry that can be renamed.
+    /// </summary>
+    /// <remarks>
+    /// One at a time, for this first cut: a folder's "name" is implied by every path nested under it,
+    /// so renaming one is really renaming every entry inside it, and that is a bigger request than a
+    /// text box asking for one new name should quietly become. A single real file is unambiguous.
+    /// </remarks>
+    public bool CanRenameSelected =>
+        HasArchive
+        && !IsBusy
+        && FormatReport?.CanUpdate == true
+        && Selection.Count == 1
+        && !Selection[0].IsFolder
+        && Selection[0].Entry is { IsRejected: false, Path: not null };
+
+    /// <summary>A refused entry contributes nothing: the writer would refuse it again on its own account.</summary>
+    private static bool HasRemovableFile(ArchiveNode node) =>
+        node.Files().Any(static f => f.Entry is { IsRejected: false, Path: not null });
 
     /// <summary>
     /// Every file extension this build can actually open, for the file picker's filter.
@@ -371,6 +411,11 @@ public sealed class BrowseViewModel : ObservableObject
             _root = ArchiveNode.BuildTree(listing.Entries);
             _currentFolder = _root;
 
+            // Nodes belong to the tree that produced them. The previous tree is gone the moment this
+            // one replaces it - including after a Manage rewrite reopens the very same path - and a
+            // selection held past that point would be pointing at objects nothing on screen still shows.
+            Selection.Clear();
+
             // A verdict belongs to the archive it was asked about, so opening another one retires it.
             TestResult = null;
 
@@ -379,6 +424,10 @@ public sealed class BrowseViewModel : ObservableObject
             Raise(nameof(SummaryLine));
             Raise(nameof(CanGoUp));
             Raise(nameof(CanTest));
+            Raise(nameof(CanAddEntries));
+            Raise(nameof(CanRemoveSelected));
+            Raise(nameof(CanRenameSelected));
+            Raise(nameof(SelectionSummary));
             Refresh();
             return true;
         }
@@ -484,6 +533,9 @@ public sealed class BrowseViewModel : ObservableObject
         Raise(nameof(CanExtractSelection));
         Raise(nameof(CanGoUp));
         Raise(nameof(CanTest));
+        Raise(nameof(CanAddEntries));
+        Raise(nameof(CanRemoveSelected));
+        Raise(nameof(CanRenameSelected));
     }
 
     /// <summary>Navigates into a folder. Files are ignored — opening one is a separate action.</summary>
@@ -529,6 +581,8 @@ public sealed class BrowseViewModel : ObservableObject
         }
 
         Raise(nameof(CanExtractSelection));
+        Raise(nameof(CanRemoveSelected));
+        Raise(nameof(CanRenameSelected));
         Raise(nameof(SelectionSummary));
     }
 
@@ -607,6 +661,152 @@ public sealed class BrowseViewModel : ObservableObject
                 ? $"{BidiText.FormatCount(outcome.EntriesWritten, CultureInfo.InvariantCulture)} / {BidiText.FormatCount(outcome.Blocked.Count, CultureInfo.InvariantCulture)}"
                 : BidiText.FormatCount(outcome.EntriesWritten, CultureInfo.InvariantCulture);
 
+            return outcome;
+        }
+        catch (ArchiveOperationException ex)
+        {
+            Status = ex.Error.TechnicalDetail;
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Adds files and folders to the open archive.
+    /// </summary>
+    /// <remarks>
+    /// Directories are added recursively, exactly as <c>CreateAsync</c> adds them to a new one — the
+    /// handler underneath is the same enumeration, just aimed at an archive that already has entries.
+    /// </remarks>
+    public ValueTask<ManageOutcome?> AddEntriesAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        return paths.Count == 0
+            ? ValueTask.FromResult<ManageOutcome?>(null)
+            : ManageAsync([], [], paths, cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes the current selection from the open archive.
+    /// </summary>
+    /// <remarks>
+    /// A selected folder removes every file beneath it; a selected file removes itself. Refused entries
+    /// contribute nothing, for the same reason extraction skips them — the writer would refuse them
+    /// again on its own account, and this simply does not ask it to.
+    /// </remarks>
+    public ValueTask<ManageOutcome?> RemoveSelectedAsync(CancellationToken cancellationToken = default)
+    {
+        var removals = SelectedEntryPaths();
+        return removals.Count == 0
+            ? ValueTask.FromResult<ManageOutcome?>(null)
+            : ManageAsync(removals, [], [], cancellationToken);
+    }
+
+    /// <summary>
+    /// Renames one entry in the open archive.
+    /// </summary>
+    /// <remarks>
+    /// The entry's folder is kept and only its own path segment changes — a rename is not a move. The
+    /// new name is passed through exactly as typed; whether it can be represented inside the archive is
+    /// the engine's question, not this screen's.
+    /// </remarks>
+    public ValueTask<ManageOutcome?> RenameAsync(ArchiveNode node, string newName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+
+        if (node.Entry?.Path is not { Value: { Length: > 0 } from })
+        {
+            return ValueTask.FromResult<ManageOutcome?>(null);
+        }
+
+        var lastSlash = from.LastIndexOf('/');
+        var to = lastSlash >= 0 ? $"{from[..lastSlash]}/{newName}" : newName;
+
+        return ManageAsync([], [new EntryRenameRequest(from, to)], [], cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the ending from the queue rather than assuming a failure.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <c>CreateViewModel.FailureFrom</c>: a null outcome means "did not complete", and
+    /// reporting a cancellation as a failure would send someone looking for a fault that was their own
+    /// decision. The engine's own message is shown when there is one; the generic sentence is only for
+    /// a cancellation, which carries no error to show.
+    /// </remarks>
+    private string ManageFailureStatus(OperationId id)
+    {
+        var text = LocalizedStrings.For(UiLanguage.ForCulture(_culture));
+        var snapshot = _workspace.Operations().FirstOrDefault(s => s.Id == id);
+
+        if (snapshot?.State == OperationState.Cancelled)
+        {
+            return text.ManageCancelled;
+        }
+
+        return snapshot?.Error?.TechnicalDetail ?? text.ManageFailed;
+    }
+
+    /// <summary>Every real, non-rejected file under the current selection, by its archive path.</summary>
+    private List<string> SelectedEntryPaths() =>
+        [.. Selection
+            .SelectMany(static n => n.Files())
+            .Select(static n => n.Entry?.Path?.Value)
+            .Where(static p => p is not null)
+            .Select(static p => p!)
+            .Distinct(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Rewrites the open archive and, on success, reopens it so the screen shows what is actually there.
+    /// </summary>
+    /// <remarks>
+    /// Reopening rather than patching the in-memory tree by hand: the engine is the one source of truth
+    /// for what an archive contains, and a rewrite can change more than what was asked — sizes, a
+    /// recomputed statistics block, an encoding guess that no longer applies. Asking it again is the
+    /// only way the screen cannot drift from the file it is supposedly showing.
+    /// </remarks>
+    private async ValueTask<ManageOutcome?> ManageAsync(
+        IReadOnlyList<string> entriesToRemove,
+        IReadOnlyList<EntryRenameRequest> entriesToRename,
+        IReadOnlyList<string> sourcesToAdd,
+        CancellationToken cancellationToken)
+    {
+        if (_archivePath is null || _format is not { } format)
+        {
+            return null;
+        }
+
+        IsBusy = true;
+        Status = null;
+
+        try
+        {
+            var options = CompressionOptions.ForProfile(format, CompressionProfile.Balanced);
+            var id = _workspace.StartManage(_archivePath, entriesToRemove, entriesToRename, sourcesToAdd, options);
+            _operations?.Track(id, OperationType.Add, ArchiveDisplayName ?? _archivePath);
+
+            var outcome = await _workspace.WaitForManageAsync(id, cancellationToken).ConfigureAwait(false);
+            if (outcome is null)
+            {
+                // Cancelled, or failed in a way the queue recorded rather than threw. The operation's
+                // own row already says which; this only chooses the sentence, never invents a reason.
+                Status = ManageFailureStatus(id);
+                return null;
+            }
+
+            _operations?.RecordResult(
+                id,
+                new OperationResult(outcome.EntriesAdded + outcome.EntriesRenamed, outcome.ArchiveSize.Bytes, 0));
+
+            // The rewrite publishes under the same path it was asked to update, so reopening it is a
+            // plain re-read - never a new archive the screen would have to notice and switch to.
+            // OpenAsync clears Status on its own way in, so the success message is set after it returns.
+            await OpenAsync(outcome.ArchivePath, cancellationToken).ConfigureAwait(false);
+            Status = LocalizedStrings.For(UiLanguage.ForCulture(_culture)).ManageDone;
             return outcome;
         }
         catch (ArchiveOperationException ex)

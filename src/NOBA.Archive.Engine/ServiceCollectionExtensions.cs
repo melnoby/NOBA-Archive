@@ -91,6 +91,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<TestArchiveHandler>();
         services.TryAddSingleton<ExtractArchiveHandler>();
         services.TryAddSingleton<CreateArchiveHandler>();
+        services.TryAddSingleton<ManageArchiveHandler>();
         services.TryAddSingleton<DiskSpaceEstimator>();
         services.TryAddSingleton<IConflictResolutionService, ConflictResolutionService>();
         services.TryAddSingleton<IOperationQueue>(sp => new OperationQueue(

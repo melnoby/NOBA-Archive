@@ -125,6 +125,9 @@ public sealed partial class BrowsePage : UserControl
             case nameof(BrowseViewModel.CanExtractAll):
             case nameof(BrowseViewModel.CanExtractSelection):
             case nameof(BrowseViewModel.CanTest):
+            case nameof(BrowseViewModel.CanAddEntries):
+            case nameof(BrowseViewModel.CanRemoveSelected):
+            case nameof(BrowseViewModel.CanRenameSelected):
             case nameof(BrowseViewModel.IsBusy):
                 OnUiThread(RenderCommands);
                 break;
@@ -188,6 +191,13 @@ public sealed partial class BrowsePage : UserControl
         ExtractSelectedButton.Content = text.ExtractSelected;
         TestButton.Content = text.TestArchive;
         EmptyOpenButton.Content = text.OpenArchive;
+
+        // Same words the Create screen uses for the same verbs - see LocalizedStrings' own remark on
+        // why "Add files", "Add folder" and "Remove" are not duplicated under a second key.
+        AddFilesButton.Content = text.CreateAddFiles;
+        AddFolderButton.Content = text.CreateAddFolder;
+        RemoveButton.Content = text.CreateRemove;
+        RenameButton.Content = text.BrowseRename;
 
         SearchBox.PlaceholderText = text.SearchPlaceholder;
         ToolTipService.SetToolTip(ClearSearchButton, text.ClearSearch);
@@ -296,6 +306,118 @@ public sealed partial class BrowsePage : UserControl
     }
 
     private void OnDismissTest(object sender, RoutedEventArgs e) => Model?.ClearTest();
+
+    /// <summary>Picks files and adds them to the open archive. No archive-format filter: anything goes in.</summary>
+    private async void OnAddFiles(object sender, RoutedEventArgs e)
+    {
+        if (Model is null)
+        {
+            return;
+        }
+
+        var picker = new FileOpenPicker();
+        picker.FileTypeFilter.Add("*");
+
+        var window = ((App)Microsoft.UI.Xaml.Application.Current).MainWindowHandle;
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, window);
+
+        var files = await picker.PickMultipleFilesAsync();
+        if (files.Count > 0)
+        {
+            await Model.AddEntriesAsync([.. files.Select(static f => f.Path)]);
+        }
+    }
+
+    /// <summary>
+    /// Picks one folder and adds it to the open archive.
+    /// </summary>
+    /// <remarks>Walked recursively by the handler, exactly as a folder added to a new archive is.</remarks>
+    private async void OnAddFolder(object sender, RoutedEventArgs e)
+    {
+        if (Model is null)
+        {
+            return;
+        }
+
+        var picker = new FolderPicker();
+
+        var window = ((App)Microsoft.UI.Xaml.Application.Current).MainWindowHandle;
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, window);
+
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder is not null)
+        {
+            await Model.AddEntriesAsync([folder.Path]);
+        }
+    }
+
+    /// <summary>
+    /// Confirms, then removes the selection from the open archive.
+    /// </summary>
+    /// <remarks>
+    /// The confirmation is not a formality: unlike removing a staged input before a new archive is
+    /// written, this rewrites a file already on disk the moment the person agrees to it. The dialog
+    /// says so, and <c>ConfirmDialog</c>'s own default button is Close rather than Primary for exactly
+    /// this reason.
+    /// </remarks>
+    private async void OnRemoveSelected(object sender, RoutedEventArgs e)
+    {
+        if (_shell is null || Model is null || !Model.CanRemoveSelected)
+        {
+            return;
+        }
+
+        var text = _shell.Text;
+        var count = BidiText.FormatCount(Model.Selection.Count, CultureInfo.InvariantCulture);
+
+        var prompt = new ConfirmPrompt(
+            string.Format(_shell.Language.Culture, text.ManageRemoveTitle, count),
+            text.ManageRemoveBody,
+            text.ManageRemoveConfirm,
+            text.ManageRemoveCancel,
+            _shell.IsRightToLeft,
+            _shell.UiFontFamily);
+
+        var confirmed = await ((App)Microsoft.UI.Xaml.Application.Current)
+            .ConfirmDialog
+            .ShowAsync(prompt, CancellationToken.None);
+
+        if (confirmed)
+        {
+            await Model.RemoveSelectedAsync();
+        }
+    }
+
+    /// <summary>Asks for a new name, then renames the one selected entry.</summary>
+    private async void OnRenameSelected(object sender, RoutedEventArgs e)
+    {
+        if (_shell is null || Model is null || !Model.CanRenameSelected)
+        {
+            return;
+        }
+
+        var node = Model.Selection[0];
+        var text = _shell.Text;
+
+        var prompt = new RenamePrompt(
+            text.ManageRenameTitle,
+            text.ManageRenameBody,
+            text.ManageRenameField,
+            node.Name,
+            text.ManageRenameConfirm,
+            text.ManageRenameCancel,
+            _shell.IsRightToLeft,
+            _shell.UiFontFamily);
+
+        var newName = await ((App)Microsoft.UI.Xaml.Application.Current)
+            .RenameDialog
+            .ShowAsync(prompt, CancellationToken.None);
+
+        if (!string.IsNullOrWhiteSpace(newName))
+        {
+            await Model.RenameAsync(node, newName);
+        }
+    }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e)
     {
@@ -507,6 +629,11 @@ public sealed partial class BrowsePage : UserControl
         // disabled in markup, which is the same pixels for the wrong reason: it said "not built" when
         // the truth is "depends on the format", and it would have kept saying it after this shipped.
         TestButton.IsEnabled = Model.CanTest;
+
+        AddFilesButton.IsEnabled = Model.CanAddEntries;
+        AddFolderButton.IsEnabled = Model.CanAddEntries;
+        RemoveButton.IsEnabled = Model.CanRemoveSelected;
+        RenameButton.IsEnabled = Model.CanRenameSelected;
     }
 
     /// <summary>

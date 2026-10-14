@@ -62,6 +62,14 @@ public partial class App : Microsoft.UI.Xaml.Application
     public IExtractDialog ExtractDialog => _dialogs ?? throw new InvalidOperationException(
         "The dialog host does not exist until the application has launched.");
 
+    /// <summary>The host that asks for confirmation before a destructive, un-undoable action.</summary>
+    public IConfirmDialog ConfirmDialog => _dialogs ?? throw new InvalidOperationException(
+        "The dialog host does not exist until the application has launched.");
+
+    /// <summary>The host that asks for a new name for one entry.</summary>
+    public IRenameDialog RenameDialog => _dialogs ?? throw new InvalidOperationException(
+        "The dialog host does not exist until the application has launched.");
+
     private WindowDialogHost? _dialogs;
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)

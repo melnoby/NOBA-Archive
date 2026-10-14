@@ -38,22 +38,52 @@ public sealed record FormatCapabilityReport(ArchiveFormat Format, ArchiveCapabil
 
     public bool CanCreate => Capabilities.Has(ArchiveCapabilities.Create);
 
+    /// <summary>
+    /// Adding entries to a <em>new</em> archive at Create time. Left exactly as it was before DROP 03:
+    /// it feeds <see cref="PermitsMemberCount"/>, which gates whether Create accepts more than one
+    /// input, and that question is unrelated to whether an existing archive on disk can be rewritten.
+    /// </summary>
     public bool CanAdd => Capabilities.Has(ArchiveCapabilities.AddEntries);
 
-    public bool CanRemove => Capabilities.Has(ArchiveCapabilities.RemoveEntries);
+    /// <summary>Removing an entry from an existing archive. See <see cref="CanUpdate"/> for how.</summary>
+    public bool CanRemove => Capabilities.Has(UpdateRequirements);
 
-    public bool CanRename => Capabilities.Has(ArchiveCapabilities.RenameEntries);
+    /// <summary>Renaming an entry in an existing archive. See <see cref="CanUpdate"/> for how.</summary>
+    public bool CanRename => Capabilities.Has(UpdateRequirements);
 
     /// <summary>
-    /// Modifying an archive in place.
+    /// What <see cref="CanUpdate"/>, <see cref="CanRemove"/>, and <see cref="CanRename"/> all actually
+    /// require.
     /// </summary>
     /// <remarks>
-    /// Deliberately the conjunction rather than a flag of its own: updating an archive means being able
-    /// to put entries in and take them out again. No provider in this build reports both, so this is
-    /// false everywhere today — which is the honest answer, and the one DROP 03 has to change by making
-    /// it true rather than by asserting it.
+    /// <para>
+    /// Not <see cref="ArchiveCapabilities.RemoveEntries"/> or <see cref="ArchiveCapabilities.RenameEntries"/>:
+    /// no provider in this build sets either raw flag, because no provider implements a native in-place
+    /// update (see <c>SevenZipArchiveProvider</c> and <c>TarArchiveProvider</c>'s own comments — a
+    /// promise a backend cannot keep is worse than a missing feature). DROP 03 answers "can this archive
+    /// be updated" a different way: by rewriting it. Opening the old archive, listing it, extracting
+    /// what should survive, and creating a fresh one from that plus whatever is new is enough to remove,
+    /// rename, and add entries without any provider ever mutating bytes it already wrote — so what this
+    /// needs is exactly <see cref="ArchiveCapabilities.Open"/>, <see cref="ArchiveCapabilities.ListEntries"/>,
+    /// <see cref="ArchiveCapabilities.Extract"/>, <see cref="ArchiveCapabilities.Create"/>, and
+    /// <see cref="ArchiveCapabilities.AddEntries"/> together.
+    /// </para>
+    /// <para>
+    /// Checked against every provider this build has: true for ZIP, 7Z, and TAR (all declare that
+    /// combination already, for Create); false for GZIP (no <c>AddEntries</c> — a gzip holds one member,
+    /// so "add" has no meaning, and neither does rewriting it to remove or rename that one member); false
+    /// for RAR (no <c>Create</c> or <c>AddEntries</c> — read-only per ADR-0004).
+    /// </para>
     /// </remarks>
-    public bool CanUpdate => Capabilities.Has(ArchiveCapabilities.AddEntries | ArchiveCapabilities.RemoveEntries);
+    private const ArchiveCapabilities UpdateRequirements =
+        ArchiveCapabilities.Open
+        | ArchiveCapabilities.ListEntries
+        | ArchiveCapabilities.Extract
+        | ArchiveCapabilities.Create
+        | ArchiveCapabilities.AddEntries;
+
+    /// <summary>Modifying an archive in place — adding, removing, or renaming any of its entries.</summary>
+    public bool CanUpdate => Capabilities.Has(UpdateRequirements);
 
     /// <summary>Encrypting content with a password. The same capability the format calls encryption.</summary>
     public bool CanPasswordProtect => Capabilities.Has(ArchiveCapabilities.Encrypt);

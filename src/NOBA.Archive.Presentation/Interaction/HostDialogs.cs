@@ -123,3 +123,51 @@ public interface IExtractDialog
     /// </remarks>
     ValueTask<ExtractChoice?> ShowAsync(ExtractPrompt prompt, CancellationToken cancellationToken);
 }
+
+/// <summary>Everything a yes/no confirmation renders, already localised and direction-isolated.</summary>
+/// <remarks>
+/// One shape for every destructive confirmation this build asks for, rather than one dialog per verb.
+/// Removing entries from an archive is the first caller, and it is not a special case: it rewrites a
+/// real file on disk the moment the person agrees, which is exactly the kind of action this product
+/// otherwise never takes without an explicit decision — the conflict dialog and the overwrite checkbox
+/// both exist for the same reason.
+/// </remarks>
+public sealed record ConfirmPrompt(
+    string Title,
+    string Body,
+    string ConfirmLabel,
+    string CancelLabel,
+    bool IsRightToLeft,
+    string FontFamily);
+
+/// <summary>The mechanism for asking a person to confirm a destructive action.</summary>
+public interface IConfirmDialog
+{
+    /// <summary>Shows the prompt and returns whether the person confirmed.</summary>
+    ValueTask<bool> ShowAsync(ConfirmPrompt prompt, CancellationToken cancellationToken);
+}
+
+/// <summary>Everything the rename dialog renders, already localised and direction-isolated.</summary>
+public sealed record RenamePrompt(
+    string Title,
+    string Body,
+    string FieldLabel,
+    string CurrentName,
+    string ConfirmLabel,
+    string CancelLabel,
+    bool IsRightToLeft,
+    string FontFamily);
+
+/// <summary>The mechanism for asking a person for a new name.</summary>
+public interface IRenameDialog
+{
+    /// <summary>
+    /// Shows the prompt and returns the new name, or <c>null</c> if the person backed out.
+    /// </summary>
+    /// <remarks>
+    /// Returned exactly as typed, with no trimming or validation applied here: whether a name can be
+    /// represented inside the archive is the engine's question, the same way a dropped path is never
+    /// judged by the screen that received it.
+    /// </remarks>
+    ValueTask<string?> ShowAsync(RenamePrompt prompt, CancellationToken cancellationToken);
+}
