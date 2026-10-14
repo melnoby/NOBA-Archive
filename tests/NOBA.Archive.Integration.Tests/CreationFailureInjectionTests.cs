@@ -9,18 +9,20 @@ using Xunit;
 namespace NOBA.Archive.Integration.Tests;
 
 /// <summary>
-/// CRT-014/015: the two real-world write failures <c>docs/PRODUCT_PLAN.md</c> names as in scope for
-/// Create — disk-full and permission-denied — were previously unexercised anywhere in the suite.
+/// CRT-014/015/016: the three real-world write failures <c>docs/PRODUCT_PLAN.md</c>'s L13 names as in
+/// scope for Create — disk-full, permission-denied, and a locked source — were previously unexercised
+/// anywhere in the suite.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Neither failure can be provoked deterministically on a real filesystem in CI (filling a disk or
-/// revoking an ACL mid-test is not something a shared test machine can do safely), so both are
-/// injected at <see cref="IFileSystem"/> — the one seam <see cref="PhysicalFileSystem"/> itself
-/// translates real OS errors at (see its <c>Translate</c> method). <see cref="FaultInjectingFileSystem"/>
-/// wraps the real filesystem and throws the same <see cref="ArchiveOperationException"/> a genuine
-/// disk-full or access-denied error would produce, at the same call sites production code already
-/// goes through <see cref="EngineFixture"/> to reach.
+/// None of the three can be provoked deterministically on a real filesystem in CI (filling a disk,
+/// revoking an ACL, or holding a file open with no shared read access mid-test is not something a
+/// shared test machine can do safely), so all three are injected at <see cref="IFileSystem"/> — the one
+/// seam <see cref="PhysicalFileSystem"/> itself translates real OS errors at (see its <c>Translate</c>
+/// method). <see cref="FaultInjectingFileSystem"/> wraps the real filesystem and throws the same
+/// <see cref="ArchiveOperationException"/> a genuine disk-full, access-denied, or sharing-violation
+/// error would produce, at the same call sites production code already goes through
+/// <see cref="EngineFixture"/> to reach.
 /// </para>
 /// <para>
 /// Same two-part assertion as the rest of <see cref="CreationMatrixTests"/>: the operation is reported
@@ -100,6 +102,32 @@ public sealed class CreationFailureInjectionTests
         AssertNothingLandedAt(archive, sandbox);
     }
 
+    /// <summary>
+    /// CRT-016: a source file is locked by another process — already open with no shared read access —
+    /// discovered while NOBA Archive reads it to compress it, not while opening the destination.
+    /// </summary>
+    [Fact]
+    public async Task A_source_locked_by_another_process_fails_cleanly_and_leaves_nothing()
+    {
+        using var sandbox = new TempDirectory("CRT-016");
+        var locked = await WriteFile(sandbox.Combine("locked.txt"), "content");
+        var archive = sandbox.Combine("out.zip");
+
+        var sharingViolation = new ArchiveOperationException(ArchiveError.Create(
+            ArchiveErrorCode.AccessDenied,
+            "The process cannot access the file because it is being used by another process.",
+            locked));
+
+        var fileSystem = new FaultInjectingFileSystem(new PhysicalFileSystem(), openReadError: sharingViolation);
+
+        await using var engine = new EngineFixture(password: null, fileSystemOverride: fileSystem);
+        var failure = await Assert.ThrowsAsync<ArchiveOperationException>(
+            async () => await engine.CreateAsync(archive, [locked]));
+
+        Assert.Equal(ArchiveErrorCode.AccessDenied, failure.Error.Code);
+        AssertNothingLandedAt(archive, sandbox);
+    }
+
     private static async Task<string> WriteFile(string path, string content)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -109,9 +137,10 @@ public sealed class CreationFailureInjectionTests
 }
 
 /// <summary>
-/// Wraps a real <see cref="IFileSystem"/> and injects exactly one failure, at one of two call sites:
-/// opening the staging file (<see cref="CreateNew"/>, for "destination cannot be opened"), or a write
-/// to the stream it returns after a fixed byte budget (for "volume fills up mid-write"). Everything
+/// Wraps a real <see cref="IFileSystem"/> and injects exactly one failure, at one of three call sites:
+/// opening the staging file (<see cref="CreateNew"/>, for "destination cannot be opened"), a write to
+/// the stream it returns after a fixed byte budget (for "volume fills up mid-write"), or opening a
+/// source file for reading (<see cref="OpenRead"/>, for "source locked by another process"). Everything
 /// else is forwarded untouched — this is a scalpel, not a fake filesystem.
 /// </summary>
 internal sealed class FaultInjectingFileSystem : IFileSystem
@@ -120,18 +149,21 @@ internal sealed class FaultInjectingFileSystem : IFileSystem
     private readonly ArchiveOperationException? _createNewError;
     private readonly long _writeFaultAfterBytes;
     private readonly ArchiveOperationException? _writeFaultError;
+    private readonly ArchiveOperationException? _openReadError;
 
     public FaultInjectingFileSystem(
         IFileSystem inner,
         ArchiveOperationException? createNewError = null,
         long writeFaultAfterBytes = long.MaxValue,
-        ArchiveOperationException? writeFaultError = null)
+        ArchiveOperationException? writeFaultError = null,
+        ArchiveOperationException? openReadError = null)
     {
         ArgumentNullException.ThrowIfNull(inner);
         _inner = inner;
         _createNewError = createNewError;
         _writeFaultAfterBytes = writeFaultAfterBytes;
         _writeFaultError = writeFaultError;
+        _openReadError = openReadError;
     }
 
     public Stream CreateNew(string path, long? preallocateBytes = null)
@@ -158,7 +190,7 @@ internal sealed class FaultInjectingFileSystem : IFileSystem
     public IEnumerable<FileSystemEntryInfo> EnumerateEntries(string directory, bool recursive, CancellationToken cancellationToken) =>
         _inner.EnumerateEntries(directory, recursive, cancellationToken);
 
-    public Stream OpenRead(string path) => _inner.OpenRead(path);
+    public Stream OpenRead(string path) => _openReadError is { } error ? throw error : _inner.OpenRead(path);
 
     public void CreateDirectory(string path) => _inner.CreateDirectory(path);
 
