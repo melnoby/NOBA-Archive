@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-07-archive-intelligence-search`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-11-performance-and-scale`
 
 ---
 
@@ -243,8 +243,9 @@ rather than transcribed.
 | L33 | **Concurrent operations against the native 7Z/RAR backend are unverified.** DROP 09 proved `OperationQueue` and the real `CreateArchiveHandler`/`ExtractArchiveHandler` safe under genuine concurrency for the managed ZIP provider (OPQ-025…027, OPX-017…019) and the `EngineWorkspace` outcome-parking pattern in isolation — but `7z.dll` is not present on the Linux build machine, so whether two simultaneous `IInArchive`/`IOutArchive` handler objects from `SevenZipLibrary.CreateObject` are safe has no automated coverage anywhere, and `EngineWorkspace` itself (`NOBA.Archive.App`, Windows-only) has never been exercised under concurrency either. The shipped default stays `MaxConcurrentOperations = 1` partly for this reason | a Windows concurrency gate |
 | L34 | **The fuzz harness (FUZ-001…003) covers only ZIP/TAR/GZIP.** THREAT_MODEL.md §6's acceptance gate names "ZIP/7Z/TAR/RAR" as one item; 7Z and RAR parse through `7z.dll`, which is not present on the Linux build machine, so that half has no automated fuzz coverage anywhere and is not claimed as covered by the managed-format result | a Windows fuzzing gate |
 | L35 | **The WinUI `BrowseViewModel` search still matches `Name` only, culture-aware.** DROP 07's new ordinal, path-aware search lives in `SearchArchiveHandler` (Application layer) and the CLI `search` verb, not in the existing Presentation-layer search box. Deliberate, not an oversight: `BrowseViewModel.Matches` is explicitly culture-aware because it only ever judges a display name, never a path (`ArchiveNode.Summarise`'s own rationale — "a culture-sensitive comparison anywhere near a path is a defect waiting to be exploited"); folding a second, ordinal, path-matching mode into the same keystroke-driven comparison would mix two comparison semantics behind one text box rather than extend it safely. Wiring the screen to call the new handler, instead of widening the old one, is the right-sized follow-up | DROP 10 |
-| L36 | **"Deterministic and fast search" is proven deterministic, not measured fast.** `SearchArchiveHandler`'s sort is unit-proven stable and tie-broken (SRC-006), and it streams rather than materializing the whole archive when unsorted, but no benchmark exists against a large archive — the same gap `CRT-013` already discloses for listing ("thousands of entries," not a performance test) | DROP 11 |
+| ~~L36~~ | ~~"Deterministic and fast search" is proven deterministic, not measured fast.~~ **Closed in DROP 11.** `docs/PERFORMANCE.md` now measures `search` against `list` at 200/2,000/20,000 entries (`scripts/benchmark-linux.sh`); they cost about the same at every scale, confirming `SearchArchiveHandler` adds no second pass. `PRF-003` turns the shape ("grows with entries scanned, not quadratically") into a repeatable allocation-ratio regression test | Closed |
 | L37 | **The WinUI archive tree still loads every entry into memory at open time, search or not.** `SearchArchiveHandler` honors "large-archive browsing without loading everything into the UI" at the Application-layer contract (streams matches; buffers only the matched subset when sorted), but `BrowseViewModel.OpenAsync` → `ArchiveNode.BuildTree` was not touched this drop and still builds the whole tree up front, and `Refresh()`'s search mode still flattens that whole tree before filtering it. Restructuring the WinUI screen itself around the new streaming contract is a larger UI-architecture change, out of scope for a drop this session can verify only on Linux | DROP 10, 11 |
+| L38 | **UI responsiveness and startup-to-interactive are unmeasured.** DROP 11 measured CLI-surfaced operations (`create`/`list`/`search`/`extract`/`test`) and process memory on Linux; the WinUI desktop app (`NOBA.Archive.App`) cannot be built, started, or driven from this session, so first-paint latency, tree-population responsiveness on a large archive, and startup-to-interactive time have no measurement anywhere — only the non-UI engine work the CLI exercises is covered | a Windows UI run |
 
 ---
 
@@ -296,11 +297,11 @@ the running app. A SKIP it prints is not a pass.
 | 04 | Production Extraction | 01 | conflict policy UX | `LINUX` | WinUI build + the extraction gate below |
 | 05 | Format & Capability Expansion | 01 | four providers do not exist yet | `LINUX` | WinUI build + the Windows format gate; BZIP2/XZ and composite tar BLOCKED by design |
 | 06 | Security | 04, 05 | adversarial corpus needs building | `LINUX` | WinUI build + a Windows run; 7Z/RAR fuzzing (L34) remains unverified by design |
-| 07 | Archive Intelligence (no AI) | 05 | large-archive listing performance | `LINUX` | WinUI build + a Windows run; no benchmark against a large archive (L36); `BrowseViewModel` still loads the whole tree and still searches by name only (L35, L37) |
+| 07 | Archive Intelligence (no AI) | 05 | large-archive listing performance | `LINUX` | WinUI build + a Windows run; benchmark against a large archive closed by DROP 11 (L36); `BrowseViewModel` still loads the whole tree and still searches by name only (L35, L37) |
 | 08 | Shell Integration | 02, 04, packaging | needs a real installer; Windows-only verification | `TODO` | — |
 | 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
-| 11 | Performance and Scale | 05, 07 | must measure, not guess | `TODO` | — |
+| 11 | Performance and Scale | 05, 07 | must measure, not guess | `LINUX` | WinUI build + a Windows run; R17/R18 (native 7Z backend, solid-archive scaling) still need `scripts\benchmark.ps1` on real Windows hardware; UI responsiveness/startup-to-interactive unverified from this session (L38); nothing measured above 20,000 entries |
 | 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `TODO` | — |
 | 13 | Release Security Audit | 06, 12 | hostile review of everything | `TODO` | — |
 | 14 | Product Polish | 10 | must not redesign | `TODO` | — |
@@ -761,6 +762,43 @@ evidence, for the managed providers; it is unverified, honestly, for the native 
 - **Exit:** decisions backed by measurements; regression tests on the boundaries that matter;
   correctness, security, cancellation, pause and architecture unchanged.
 
+#### What this drop built
+
+- **`scripts/benchmark-linux.sh`** — the Linux counterpart to the pre-existing, Windows-only
+  `scripts/benchmark.ps1`. Times `create`/`list`/`search`/`extract`/`test` through the real CLI at
+  200/2,000/20,000 entries against the managed ZIP provider (the only format `7z.dll`'s absence on
+  this build machine allows), sampling peak RSS from `/proc/<pid>/status` (no `time -v` on this
+  image) and comparing against the native `7z` CLI on the same ZIP shape. Run twice; both runs
+  produced the same shape of result. Real CSV: `artifacts/benchmark-linux-20261018-201204.csv`.
+- **`docs/PERFORMANCE.md`** (new) — the file `docs/TESTING.md` §3 already named as DROP 11's
+  destination. Records the real numbers above with honest "what this says" / "what is not measured
+  here" sections, rather than targets or an SLA (rule 25: optimise only after measuring).
+- **`tests/NOBA.Archive.Integration.Tests/PerformanceAndScaleTests.cs`** (new, `PRF-001`…`PRF-004`) —
+  regression tests built on `GC.GetTotalAllocatedBytes(precise: true)` deltas and **ratio**
+  assertions, not wall-clock assertions, following `CRT-013`'s own stated reason ("there is no time
+  assertion, because a wall clock on shared CI hardware measures the hardware"): `PRF-001` asserts an
+  8x larger single extracted file does not allocate proportionally more (the single-file half of
+  `ARCHITECTURE.md`'s "constant memory regardless of archive size" claim); `PRF-002` round-trips
+  6,000 files at mixed nesting depth with every 5th file Arabic-named, through create/list/search/
+  extract/test together at that combined scale; `PRF-003` asserts search allocation grows with
+  entries scanned, not quadratically, across a 10x entry-count step; `PRF-004` asserts the same for
+  extracting many small files. All 4 passed on the first real run against the engine, with no bound
+  tuning needed.
+- **Confirmed, not merely asserted:** extraction scales sub-linearly in entry count (4.4x then 4.1x
+  cost for each 10x entry-count step, 200→2,000→20,000) — the opposite shape from R18's solid-7z
+  O(n²) concern, on the format this session can measure. Peak RSS grew only 2.6x for 100x more
+  entries. `noba-ar` is 3–6x slower than the native `7z` CLI here, which the numbers attribute
+  honestly to per-process .NET startup plus the hardened extraction writer's path/handle
+  re-verification that `7z` does not do — not hidden as a win.
+- **Left open, named rather than silently dropped:** R17/R18's actual target (native 7Z backend,
+  solid-archive scaling) still needs a Windows run of the pre-existing `scripts/benchmark.ps1` — not
+  attempted this drop, no Windows machine with `noba-ar.exe` + 7-Zip available from this session.
+  UI responsiveness and startup-to-interactive are WinUI-only and unverifiable from this session
+  (new L38). Nothing above 20,000 entries was measured; `benchmark-linux.sh` has no budget guard for
+  a larger run, unlike `benchmark.ps1`.
+- Correctness, security, cancellation, pause and architecture were not touched — no production code
+  changed this drop, only new scripts, docs and tests.
+
 ### DROP 12 — Recovery and Failure Safety
 - **Scope:** close during operation, cancellation, provider failure, corrupt archive, bad password,
   access denied, disk full, destination or source disappears, locked source, invalid path,
@@ -811,6 +849,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-10-18 | DROP 09 — Operations Center (concurrency) | `…-drop-09-operations-center-concurrency` | 875 / 6 | — | PASS | not run | `artifacts/test-20261018-202535/` |
 | 2026-10-18 | DROP 06 — Security (fuzzing, redaction, disk exhaustion) | `…-drop-06-security-fuzzing-and-redaction` | 888 / 6 | — | PASS | not run | `artifacts/test-20261018-215418/` |
 | 2026-10-18 | DROP 07 — Archive Intelligence (search, no AI) | `…-drop-07-archive-intelligence-search` | 904 / 6 | — | PASS | not run | `artifacts/test-20261018-224305/` |
+| 2026-10-18 | DROP 11 — Performance and Scale | `…-drop-11-performance-and-scale` | 908 / 6 | — | PASS | not run | `artifacts/test-20261018-232238/` |
 
 ---
 
