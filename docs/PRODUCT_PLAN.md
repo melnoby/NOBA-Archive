@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-11-performance-and-scale`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-03-archive-management-cli`
 
 ---
 
@@ -210,7 +210,7 @@ rather than transcribed.
 |--:|---|---|
 | ~~L1~~ | ~~No Create screen and no Settings screen.~~ **Create closed in DROP 02**: `CreatePage` is a real screen and `NavCreate` navigates to it. Settings remains absent and its nav item stays disabled with the "Not built yet" tooltip. | DROP 10, 14 |
 | ~~L2~~ | ~~No TAR / GZIP / BZIP2 / XZ provider.~~ **TAR and GZIP implemented in DROP 05** on the BCL, no new dependency. BZIP2 and XZ remain **BLOCKED** (`docs/DROP05_AUDIT.md` §5) | a later drop |
-| L3 | No archive modification: add, remove, rename, update are absent from the engine handlers. The capability report already says so — `CanAdd` is true for 7Z/ZIP at the *provider* level, but no handler exists, so `CanUpdate` is false everywhere | DROP 03 |
+| ~~L3~~ | ~~No archive modification: add, remove, rename, update are absent from the engine handlers.~~ **Closed in DROP 03.** `ManageArchiveHandler` (Application layer) rewrites an archive to add, remove and rename entries — opened read-only, every surviving entry restaged, then rebuilt and published atomically through the same `IArchivePublisher` path `CreateArchiveHandler` already uses. Registered in DI, wired into the WinUI app (`BrowseViewModel`'s Add/Remove/Rename commands), and covered by MAN-001..010 (Integration) and UI-013..020 (Presentation). `FormatCapabilityReport.CanUpdate/CanRemove/CanRename` now reflect it honestly (true for ZIP/7Z/TAR via rewrite, false for GZIP/RAR). The CLI `manage` verb (this session's work) closes the one surface this had been missing | Closed |
 | ~~L4~~ | ~~No search or filter inside an open archive.~~ **Closed in DROP 07**: `SearchArchiveHandler` (Application layer) filters by name/path substring, extension, kind, size range and modified-date range, with a deterministic sort, and is reachable through a new CLI `search` verb. The existing WinUI `BrowseViewModel` search is unchanged — see L35. | DROP 07 |
 | L5 | No Explorer / shell integration; no installer beyond the alpha publish | DROP 08 |
 | ~~L6~~ | ~~Extraction conflict policy exists in the engine but the UI never offers it.~~ **Closed in DROP 04**: chosen in the extract dialog, carried through the seam, one list for every surface. | — |
@@ -293,7 +293,7 @@ the running app. A SKIP it prints is not a pass.
 |--:|---|---|---|:--:|---|
 | 01 | Product Baseline | — | none; audit only | `LINUX` | WinUI build + Windows cancel-on-disk + Clear finished still manual |
 | 02 | Creation Engine | 01 | L1 — there is no Create screen to build on | `WINDOWS` (engine) / `LINUX` (screen) | WinUI build + the screen half of the gate; password field (L10) deferred to 06 |
-| 03 | Archive Management | 02, 05¹ | honest capability reporting | `TODO` | — |
+| 03 | Archive Management | 02, 05¹ | honest capability reporting | `LINUX` | WinUI build + a Windows run; `ManageArchiveHandler`'s rewrite-via-Create strategy is unverified against the native 7Z backend (no `7z.dll` on this build machine, same gap as L33/L34) |
 | 04 | Production Extraction | 01 | conflict policy UX | `LINUX` | WinUI build + the extraction gate below |
 | 05 | Format & Capability Expansion | 01 | four providers do not exist yet | `LINUX` | WinUI build + the Windows format gate; BZIP2/XZ and composite tar BLOCKED by design |
 | 06 | Security | 04, 05 | adversarial corpus needs building | `LINUX` | WinUI build + a Windows run; 7Z/RAR fuzzing (L34) remains unverified by design |
@@ -382,6 +382,42 @@ is derived, not written down, so it shrinks honestly on a machine missing the na
 - **Must not:** fake a capability a provider does not have.
 - **Exit:** every operation gated on real provider capability; integration and negative tests;
   a partial failure is reported as partial, never as success.
+
+#### What this drop built
+
+This row sat `TODO` for longer than it should have: the Application-layer work and the WinUI wiring
+were actually done earlier in this engagement (`ManageArchiveHandler`, committed 2026-10-14), but this
+file was never updated to say so — discovered only when research for a later session turned it up.
+Recorded here now, together with what this session actually added to close the gap.
+
+- **Already in place (2026-10-14, not previously reflected here):** `ManageArchiveHandler` (Application)
+  adds, removes and renames entries by rewriting the archive — open old archive read-only, restage every
+  surviving entry (skipping removals, remapping renames through the same `ArchivePath.TryCreate`
+  traversal-safety gate extraction uses), build a fresh archive from that plus whatever is being added,
+  publish atomically through `IArchivePublisher`. No provider mutates an archive's bytes in place
+  anywhere in this codebase, so "update" is answered the same way "create" already is. Registered in DI
+  next to `CreateArchiveHandler`/`ExtractArchiveHandler`; `FormatCapabilityReport.CanUpdate/CanRemove/
+  CanRename` report it honestly per format (true for ZIP/7Z/TAR via rewrite, false for GZIP/RAR — GZIP
+  has no `AddEntries`, RAR is permanently read-only by ADR-0004). Wired into the WinUI app
+  (`EngineWorkspace.StartManage`, `BrowseViewModel`'s capability-gated Add/Remove/Rename commands,
+  `ConfirmDialog`/`RenameDialog`). Tested by MAN-001..010 (Integration) and UI-013..020 (Presentation).
+- **Added this session:** the one surface that work never got — a CLI verb. `noba-ar manage <archive>
+  [<inputs...>] [--remove <path[,path...]>] [--rename <from=to[,from=to...]>]` calls the same handler
+  the WinUI app uses, through the same `CreateHostServices`/`OperationIdFactory` path `create` already
+  follows (no `IOperationQueue` involvement — consistent with the CLI's one-command-per-process model).
+  `--remove`/`--rename` follow the exact comma-separated-list convention DROP 07's `--ext` already
+  established, rather than inventing a second one. New tests: 6 CLI-level facts
+  (`tests/NOBA.Archive.Cli.Tests/ManageCommandTests.cs` — usage errors, a bad path/rename pair named in
+  the error, and a full add+remove+rename round trip through the CLI alone) and PAR-008
+  (`DualSurfaceParityTests.cs`) proving the CLI and the engine produce the identical rewritten archive
+  for the same request.
+- **Also fixed:** `docs/ARCHITECTURE.md`'s Application-layer table still named a design that was never
+  built (`AddToArchiveHandler`/`RemoveFromArchiveHandler` as two handlers) instead of the one that
+  actually ships (`ManageArchiveHandler`, a single rewrite pass) — corrected to match the real code.
+- **Left open, named rather than silently dropped:** the rewrite strategy has never been exercised
+  against the native 7Z backend — `7z.dll` is not present on this Linux build machine, the same gap
+  L33/L34 already disclose for concurrency and fuzzing. A Windows run is still needed before this can
+  move past `LINUX`.
 
 ### DROP 04 — Production Extraction
 - **Scope:** extract all / selected / here / to…; folder picker; destination display; overwrite,
@@ -850,6 +886,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-10-18 | DROP 06 — Security (fuzzing, redaction, disk exhaustion) | `…-drop-06-security-fuzzing-and-redaction` | 888 / 6 | — | PASS | not run | `artifacts/test-20261018-215418/` |
 | 2026-10-18 | DROP 07 — Archive Intelligence (search, no AI) | `…-drop-07-archive-intelligence-search` | 904 / 6 | — | PASS | not run | `artifacts/test-20261018-224305/` |
 | 2026-10-18 | DROP 11 — Performance and Scale | `…-drop-11-performance-and-scale` | 908 / 6 | — | PASS | not run | `artifacts/test-20261018-232238/` |
+| 2026-10-18 | DROP 03 — Archive Management (CLI surface + doc reconciliation) | `…-drop-03-archive-management-cli` | 915 / 6 | — | PASS | not run | `artifacts/test-20261018-235106/` |
 
 ---
 

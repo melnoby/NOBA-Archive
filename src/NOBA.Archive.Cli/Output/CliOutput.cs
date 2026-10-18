@@ -131,3 +131,12 @@ public sealed record CliCreatePayload(
     long EntriesAdded,
     long BytesRead,
     long ArchiveSize);
+
+public sealed record CliManagePayload(
+    string OperationId,
+    string ArchivePath,
+    long EntriesKept,
+    long EntriesRemoved,
+    long EntriesRenamed,
+    long EntriesAdded,
+    long ArchiveSize);

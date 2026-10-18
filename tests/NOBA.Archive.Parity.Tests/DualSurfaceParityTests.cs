@@ -245,6 +245,69 @@ public sealed class DualSurfaceParityTests
         Assert.Equal(2, engineSearch.Matches.Count);
     }
 
+    /// <summary>
+    /// PAR-008: DROP 03's CLI surface (<c>manage</c>) produces the same rewritten archive as calling
+    /// <see cref="ManageArchiveHandler"/> directly — add, remove and rename together, in one pass.
+    /// </summary>
+    [Fact]
+    public async Task The_cli_manage_matches_the_engine_manage()
+    {
+        using var sandbox = new TempDirectory("PAR-008");
+        var engineArchive = ArchiveFactory.WriteZip(
+            sandbox.Combine("engine.zip"),
+            ("a.txt", "alpha"),
+            ("b.txt", "bravo"));
+        var cliArchive = ArchiveFactory.WriteZip(
+            sandbox.Combine("cli.zip"),
+            ("a.txt", "alpha"),
+            ("b.txt", "bravo"));
+
+        var newFile = sandbox.Combine("c.txt");
+        await File.WriteAllTextAsync(newFile, "charlie");
+
+        await using var host = CreateHost();
+        var engineOutcome = await host.GetRequiredService<ManageArchiveHandler>().HandleAsync(
+            new ManageRequest
+            {
+                ArchivePath = engineArchive,
+                Options = CompressionOptions.ForProfile(ArchiveFormat.Zip, CompressionProfile.Balanced),
+                EntriesToRemove = [EntryPath("a.txt")],
+                EntriesToRename = [new EntryRename(EntryPath("b.txt"), EntryPath("renamed/b.txt"))],
+                SourcesToAdd = [newFile],
+            },
+            host.GetRequiredService<OperationIdFactory>().Next(OperationType.Add),
+            null,
+            null,
+            CancellationToken.None);
+
+        var (exitCode, stdout, stderr) = await RunCliAsync(
+            ["manage", cliArchive, newFile, "--remove", "a.txt", "--rename", "b.txt=renamed/b.txt", "--json"]);
+        Assert.True(exitCode == ExitCode.Success, stderr);
+
+        using var document = JsonDocument.Parse(stdout);
+        var root = document.RootElement;
+
+        Assert.Equal(engineOutcome.EntriesKept, root.GetProperty("entriesKept").GetInt64());
+        Assert.Equal(engineOutcome.EntriesRemoved, root.GetProperty("entriesRemoved").GetInt64());
+        Assert.Equal(engineOutcome.EntriesRenamed, root.GetProperty("entriesRenamed").GetInt64());
+        Assert.Equal(engineOutcome.EntriesAdded, root.GetProperty("entriesAdded").GetInt64());
+
+        var engineListing = await host.GetRequiredService<ListArchiveHandler>()
+            .HandleAsync(new ListRequest { ArchivePath = engineArchive }, CancellationToken.None);
+        var cliListing = await host.GetRequiredService<ListArchiveHandler>()
+            .HandleAsync(new ListRequest { ArchivePath = cliArchive }, CancellationToken.None);
+
+        Assert.Equal(
+            string.Join("|", engineListing.Entries.Select(e => e.DisplayPath).Order(StringComparer.Ordinal)),
+            string.Join("|", cliListing.Entries.Select(e => e.DisplayPath).Order(StringComparer.Ordinal)));
+    }
+
+    private static Core.Primitives.ArchivePath EntryPath(string value)
+    {
+        Assert.True(Core.Primitives.ArchivePath.TryCreate(value, out var path, out var rejection), rejection?.Detail);
+        return path;
+    }
+
     private static ServiceProvider CreateHost()
     {
         var services = new ServiceCollection();

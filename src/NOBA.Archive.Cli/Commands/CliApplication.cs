@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -84,6 +85,7 @@ public sealed class CliApplication
                 "test" => await TestAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 "extract" => await ExtractAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 "create" => await CreateAsync(io, parsed, cancellationToken).ConfigureAwait(false),
+                "manage" => await ManageAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 _ => UnknownVerb(io, parsed.Verb),
             };
         }
@@ -965,6 +967,187 @@ public sealed class CliApplication
     }
 
     /// <summary>
+    /// Adds, removes and/or renames entries in an existing archive — DROP 03's capability, exposed as a
+    /// CLI verb. <see cref="ManageArchiveHandler"/> itself (Application layer) already implements the
+    /// rewrite and is already wired into the WinUI app; this is the one surface it was missing.
+    /// </summary>
+    private async Task<ExitCode> ManageAsync(CliOutput io, ParsedCommandLine parsed, CancellationToken cancellationToken)
+    {
+        if (parsed.Positional.Count == 0)
+        {
+            io.WriteError(
+                "manage requires an archive path: noba-ar manage <archive> [<inputs...>] " +
+                "[--remove <path[,path...]>] [--rename <from=to[,from=to...]>]");
+            return ExitCode.UsageError;
+        }
+
+        var target = Path.GetFullPath(parsed.Positional[0]);
+        var sources = parsed.Positional.Skip(1).ToList();
+
+        if (!TryParseEntryPathList(parsed.Option("remove"), out var removals, out var removeError))
+        {
+            io.WriteError(removeError);
+            return ExitCode.UsageError;
+        }
+
+        if (!TryParseRenameList(parsed.Option("rename"), out var renames, out var renameError))
+        {
+            io.WriteError(renameError);
+            return ExitCode.UsageError;
+        }
+
+        if (sources.Count == 0 && removals.Count == 0 && renames.Count == 0)
+        {
+            io.WriteError("manage requires at least one of: inputs to add, --remove, or --rename.");
+            return ExitCode.UsageError;
+        }
+
+        var formatId = parsed.Option("format") ?? InferFormatId(target);
+        var format = ArchiveFormat.FromId(formatId);
+        if (format is null)
+        {
+            io.WriteError($"'{formatId}' is not a known archive format. Run 'noba-ar formats'.");
+            return ExitCode.UsageError;
+        }
+
+        if (!TryParseProfile(parsed.Option("profile"), out var profile))
+        {
+            io.WriteError($"'{parsed.Option("profile")}' is not a profile. Use fast, balanced, max or smallest.");
+            return ExitCode.UsageError;
+        }
+
+        var options = CompressionOptions.ForProfile(format, profile);
+        if (parsed.Option("level") is { } levelText)
+        {
+            if (!int.TryParse(levelText, CultureInfo.InvariantCulture, out var level))
+            {
+                io.WriteError($"'{levelText}' is not a compression level (0-9).");
+                return ExitCode.UsageError;
+            }
+
+            options = options with { Level = new Core.Primitives.CompressionLevel(level), Profile = CompressionProfile.Custom };
+        }
+
+        if (parsed.HasFlag("solid"))
+        {
+            options = options with { Solid = true };
+        }
+
+        if (parsed.HasFlag("encrypt") || parsed.HasFlag("encrypt-names"))
+        {
+            options = options with
+            {
+                Encryption = EncryptionAlgorithm.Aes256,
+                EncryptFileNames = parsed.HasFlag("encrypt-names"),
+            };
+        }
+
+        using var password = ReadPassword(parsed);
+        await using var services = CreateHostServices(password: password);
+        var ids = services.GetRequiredService<OperationIdFactory>();
+        var operationId = ids.Next(OperationType.Add);
+
+        var outcome = await services.GetRequiredService<ManageArchiveHandler>()
+            .HandleAsync(
+                new ManageRequest
+                {
+                    ArchivePath = target,
+                    Options = options,
+                    EntriesToRemove = removals,
+                    EntriesToRename = renames,
+                    SourcesToAdd = sources,
+                },
+                operationId,
+                null,
+                null,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        io.WriteResult(new CliManagePayload(
+            operationId.Value,
+            outcome.ArchivePath,
+            outcome.EntriesKept,
+            outcome.EntriesRemoved,
+            outcome.EntriesRenamed,
+            outcome.EntriesAdded,
+            outcome.ArchiveSize.Bytes));
+
+        io.WriteLine($"Operation {operationId.Value}");
+        io.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"Updated {outcome.ArchivePath}: kept {outcome.EntriesKept:N0}, added {outcome.EntriesAdded:N0}, " +
+            $"removed {outcome.EntriesRemoved:N0}, renamed {outcome.EntriesRenamed:N0}, now {outcome.ArchiveSize}"));
+        return ExitCode.Success;
+    }
+
+    /// <summary>Parses a comma-separated list of in-archive entry paths, the same way <c>--ext</c> parses
+    /// a comma-separated list of extensions (DROP 07's convention, reused rather than reinvented).</summary>
+    private static bool TryParseEntryPathList(
+        string? value, out List<ArchivePath> paths, [NotNullWhen(false)] out string? error)
+    {
+        paths = [];
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        foreach (var raw in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!ArchivePath.TryCreate(raw, out var path, out var rejection))
+            {
+                error = $"'{raw}' is not a valid entry path: {rejection!.Detail}";
+                return false;
+            }
+
+            paths.Add(path);
+        }
+
+        return true;
+    }
+
+    /// <summary>Parses a comma-separated list of <c>from=to</c> pairs for <c>--rename</c>.</summary>
+    private static bool TryParseRenameList(
+        string? value, out List<EntryRename> renames, [NotNullWhen(false)] out string? error)
+    {
+        renames = [];
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        foreach (var pair in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var eq = pair.IndexOf('=', StringComparison.Ordinal);
+            if (eq <= 0 || eq == pair.Length - 1)
+            {
+                error = $"'{pair}' is not <from>=<to>.";
+                return false;
+            }
+
+            var fromText = pair[..eq];
+            var toText = pair[(eq + 1)..];
+
+            if (!ArchivePath.TryCreate(fromText, out var from, out var fromRejection))
+            {
+                error = $"'{fromText}' is not a valid entry path: {fromRejection!.Detail}";
+                return false;
+            }
+
+            if (!ArchivePath.TryCreate(toText, out var to, out var toRejection))
+            {
+                error = $"'{toText}' is not a valid entry path: {toRejection!.Detail}";
+                return false;
+            }
+
+            renames.Add(new EntryRename(from, to));
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// The "Open as…" escape hatch for legacy archives whose names carry no encoding (INT-020).
     /// </summary>
     private static int? NameCodePage(ParsedCommandLine parsed) =>
@@ -1081,6 +1264,7 @@ public sealed class CliApplication
         io.WriteLine("  test <archive>                     Verify integrity");
         io.WriteLine("  extract <archive> [entries...]     Extract to -o <folder>");
         io.WriteLine("  create <archive> <inputs...>       Create an archive");
+        io.WriteLine("  manage <archive> [<inputs...>]     Add/remove/rename entries in an existing archive");
         io.WriteLine("  formats                            Formats this build supports, with capabilities");
         io.WriteLine("  version                            Print product and runtime version");
         io.WriteLine("  help                               Show this text");
@@ -1103,6 +1287,11 @@ public sealed class CliApplication
         io.WriteLine("  --help                             Show this text");
         io.WriteLine(string.Empty);
         io.WriteLine("  --name-encoding <cp>  read legacy entry names as this code page (1256, 1252, 437...)");
+        io.WriteLine(string.Empty);
+        io.WriteLine("Manage options (rewrites the archive; nothing mutates in place):");
+        io.WriteLine("  --remove <path[,path...]>         Entry paths to drop, exactly as listed");
+        io.WriteLine("  --rename <from=to[,from=to...]>   Entry paths to move/rename");
+        io.WriteLine("  inputs after <archive>             Files/folders to add, same rules as 'create'");
         io.WriteLine(string.Empty);
         io.WriteLine("Search options (ordinal, deterministic - never culture-aware):");
         io.WriteLine("  --name <text>                      Substring match against the full path, not just the file name");

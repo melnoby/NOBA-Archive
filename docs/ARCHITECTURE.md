@@ -329,7 +329,7 @@ There is no code path that offers an operation the selected backend cannot perfo
 |---|---|
 | `ExtractArchiveHandler` | plans entries, applies security policy, resolves conflicts, drives the extraction writer |
 | `CreateArchiveHandler` | enumerates sources, maps profile → provider options, drives the builder |
-| `AddToArchiveHandler` / `RemoveFromArchiveHandler` | capability-gated update flows |
+| `ManageArchiveHandler` | adds, removes and renames entries in an existing archive by rewriting it (open old archive read-only, stage every surviving/renamed entry plus new sources, publish atomically) — no provider mutates archive bytes in place, so "update" is answered the same way creation already is, through `IArchivePublisher` (DROP 03) |
 | `TestArchiveHandler` | integrity verification and result classification |
 | `SearchArchiveHandler` | metadata-only search over the entry index (never extracts to match a name) — name/path, extension, kind, size and modified-date filters, ordinal throughout, with a sort; streams unsorted, buffers only the matched subset when sorted (DROP 07) |
 | `OperationQueue` | scheduling, concurrency limits, pause/resume/cancel, lifecycle events |

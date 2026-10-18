@@ -38,6 +38,8 @@ public static class CommandLineParser
         "publisher", "package-version",
         // search (DROP 07).
         "name", "ext", "kind", "min-size", "max-size", "modified-after", "modified-before", "sort",
+        // manage (DROP 03 CLI surface).
+        "remove", "rename",
     };
 
     public static bool TryParse(
