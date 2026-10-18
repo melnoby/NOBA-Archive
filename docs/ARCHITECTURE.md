@@ -331,7 +331,7 @@ There is no code path that offers an operation the selected backend cannot perfo
 | `CreateArchiveHandler` | enumerates sources, maps profile → provider options, drives the builder |
 | `AddToArchiveHandler` / `RemoveFromArchiveHandler` | capability-gated update flows |
 | `TestArchiveHandler` | integrity verification and result classification |
-| `SearchArchiveHandler` | metadata-only search over the entry index (never extracts to match a name) |
+| `SearchArchiveHandler` | metadata-only search over the entry index (never extracts to match a name) — name/path, extension, kind, size and modified-date filters, ordinal throughout, with a sort; streams unsorted, buffers only the matched subset when sorted (DROP 07) |
 | `OperationQueue` | scheduling, concurrency limits, pause/resume/cancel, lifecycle events |
 | `ConflictResolutionService` | the single implementation of Overwrite/Skip/Rename/Ask + "…All" |
 | `DiskSpaceEstimator` | pre-flight space check with an explicit "estimate" contract |

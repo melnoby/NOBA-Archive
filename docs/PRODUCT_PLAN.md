@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-06-security-fuzzing-and-redaction`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-07-archive-intelligence-search`
 
 ---
 
@@ -211,7 +211,7 @@ rather than transcribed.
 | ~~L1~~ | ~~No Create screen and no Settings screen.~~ **Create closed in DROP 02**: `CreatePage` is a real screen and `NavCreate` navigates to it. Settings remains absent and its nav item stays disabled with the "Not built yet" tooltip. | DROP 10, 14 |
 | ~~L2~~ | ~~No TAR / GZIP / BZIP2 / XZ provider.~~ **TAR and GZIP implemented in DROP 05** on the BCL, no new dependency. BZIP2 and XZ remain **BLOCKED** (`docs/DROP05_AUDIT.md` §5) | a later drop |
 | L3 | No archive modification: add, remove, rename, update are absent from the engine handlers. The capability report already says so — `CanAdd` is true for 7Z/ZIP at the *provider* level, but no handler exists, so `CanUpdate` is false everywhere | DROP 03 |
-| L4 | No search or filter inside an open archive | DROP 07 |
+| ~~L4~~ | ~~No search or filter inside an open archive.~~ **Closed in DROP 07**: `SearchArchiveHandler` (Application layer) filters by name/path substring, extension, kind, size range and modified-date range, with a deterministic sort, and is reachable through a new CLI `search` verb. The existing WinUI `BrowseViewModel` search is unchanged — see L35. | DROP 07 |
 | L5 | No Explorer / shell integration; no installer beyond the alpha publish | DROP 08 |
 | ~~L6~~ | ~~Extraction conflict policy exists in the engine but the UI never offers it.~~ **Closed in DROP 04**: chosen in the extract dialog, carried through the seam, one list for every surface. | — |
 | L7 | Split archives are read-only; no writing of volumes | DROP 05 |
@@ -242,6 +242,9 @@ rather than transcribed.
 | L32 | `Compress to` does not avoid a name collision. The engine refuses an occupied target through the existing overwrite contract rather than the menu inventing "name (2).7z" | by design |
 | L33 | **Concurrent operations against the native 7Z/RAR backend are unverified.** DROP 09 proved `OperationQueue` and the real `CreateArchiveHandler`/`ExtractArchiveHandler` safe under genuine concurrency for the managed ZIP provider (OPQ-025…027, OPX-017…019) and the `EngineWorkspace` outcome-parking pattern in isolation — but `7z.dll` is not present on the Linux build machine, so whether two simultaneous `IInArchive`/`IOutArchive` handler objects from `SevenZipLibrary.CreateObject` are safe has no automated coverage anywhere, and `EngineWorkspace` itself (`NOBA.Archive.App`, Windows-only) has never been exercised under concurrency either. The shipped default stays `MaxConcurrentOperations = 1` partly for this reason | a Windows concurrency gate |
 | L34 | **The fuzz harness (FUZ-001…003) covers only ZIP/TAR/GZIP.** THREAT_MODEL.md §6's acceptance gate names "ZIP/7Z/TAR/RAR" as one item; 7Z and RAR parse through `7z.dll`, which is not present on the Linux build machine, so that half has no automated fuzz coverage anywhere and is not claimed as covered by the managed-format result | a Windows fuzzing gate |
+| L35 | **The WinUI `BrowseViewModel` search still matches `Name` only, culture-aware.** DROP 07's new ordinal, path-aware search lives in `SearchArchiveHandler` (Application layer) and the CLI `search` verb, not in the existing Presentation-layer search box. Deliberate, not an oversight: `BrowseViewModel.Matches` is explicitly culture-aware because it only ever judges a display name, never a path (`ArchiveNode.Summarise`'s own rationale — "a culture-sensitive comparison anywhere near a path is a defect waiting to be exploited"); folding a second, ordinal, path-matching mode into the same keystroke-driven comparison would mix two comparison semantics behind one text box rather than extend it safely. Wiring the screen to call the new handler, instead of widening the old one, is the right-sized follow-up | DROP 10 |
+| L36 | **"Deterministic and fast search" is proven deterministic, not measured fast.** `SearchArchiveHandler`'s sort is unit-proven stable and tie-broken (SRC-006), and it streams rather than materializing the whole archive when unsorted, but no benchmark exists against a large archive — the same gap `CRT-013` already discloses for listing ("thousands of entries," not a performance test) | DROP 11 |
+| L37 | **The WinUI archive tree still loads every entry into memory at open time, search or not.** `SearchArchiveHandler` honors "large-archive browsing without loading everything into the UI" at the Application-layer contract (streams matches; buffers only the matched subset when sorted), but `BrowseViewModel.OpenAsync` → `ArchiveNode.BuildTree` was not touched this drop and still builds the whole tree up front, and `Refresh()`'s search mode still flattens that whole tree before filtering it. Restructuring the WinUI screen itself around the new streaming contract is a larger UI-architecture change, out of scope for a drop this session can verify only on Linux | DROP 10, 11 |
 
 ---
 
@@ -293,7 +296,7 @@ the running app. A SKIP it prints is not a pass.
 | 04 | Production Extraction | 01 | conflict policy UX | `LINUX` | WinUI build + the extraction gate below |
 | 05 | Format & Capability Expansion | 01 | four providers do not exist yet | `LINUX` | WinUI build + the Windows format gate; BZIP2/XZ and composite tar BLOCKED by design |
 | 06 | Security | 04, 05 | adversarial corpus needs building | `LINUX` | WinUI build + a Windows run; 7Z/RAR fuzzing (L34) remains unverified by design |
-| 07 | Archive Intelligence (no AI) | 05 | large-archive listing performance | `TODO` | — |
+| 07 | Archive Intelligence (no AI) | 05 | large-archive listing performance | `LINUX` | WinUI build + a Windows run; no benchmark against a large archive (L36); `BrowseViewModel` still loads the whole tree and still searches by name only (L35, L37) |
 | 08 | Shell Integration | 02, 04, packaging | needs a real installer; Windows-only verification | `TODO` | — |
 | 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
@@ -635,6 +638,46 @@ scope, so it is called out here rather than folded silently into either drop's n
 - **Exit:** deterministic and fast search; application-level contracts a future Intelligence layer
   can extend without touching the archive core. **No AI in this drop.**
 
+#### What this drop built
+
+`docs/ARCHITECTURE.md` named `SearchArchiveHandler` ("metadata-only search over the entry index —
+never extracts to match a name") since before this drop opened, and nothing had ever implemented it.
+This drop builds it, in the Application layer beside `ListArchiveHandler`, and exposes it two ways:
+
+1. **`SearchArchiveHandler`** (`NOBA.Archive.Application.Handlers`) filters `ArchiveEntry` metadata
+   only — name/path substring (ordinal, case-insensitive, matched against the *full* displayed path,
+   not only the file name — the literal "filename and path" the Scope line asks for), extension, entry
+   kind, uncompressed-size range, and modified-date range, every filter ANDed together. A sort
+   (`SearchSortKey`: path, name, size, compressed size, modified, ratio) is optional and always
+   tie-broken by path (ordinal), so a repeated identical request returns the identical order every
+   time — "deterministic" proven by `SRC-006`, not assumed. `StreamAsync` yields matches one at a
+   time via `IAsyncEnumerable<ArchiveEntry>` and holds nothing else; `HandleAsync` buffers only the
+   *matched* subset (never the whole archive) when a sort needs to see every match before placing the
+   first one — `SRC-008` proves both sides agree and that a consumer can abandon the stream early
+   without throwing. A rejected entry (traversal, say) still matches a metadata filter — `SRC-010`
+   searches for `.exe` across a hostile archive and finds one planted behind `../`, because the filter
+   reads `DisplayPath`/`RawPath` rather than requiring `Path` to be set, which is what lets a security
+   sweep find what extraction would have refused anyway.
+2. **`ArchiveEntry.CompressionRatio`** (entry-level, same null-when-zero convention as the existing
+   `ArchiveStatistics.CompressionRatio`) — the one piece of "ratios" the Scope line asked for that did
+   not already exist somewhere on the model. CRC, counts, dates, attributes, and archive-level ratio
+   were already there.
+3. **A CLI `search` verb** (`--name`, `--ext`, `--kind`, `--min-size`/`--max-size`,
+   `--modified-after`/`--modified-before`, `--sort`, `--desc`) — the same handler the desktop app will
+   eventually call into, proven end to end rather than only unit-tested in isolation (`PAR-007`,
+   ADR-0009's "one engine, two surfaces").
+
+**Deliberately not done, and why — see L35, L36, L37 for the full write-up:** the existing WinUI
+`BrowseViewModel` search (name-only, culture-aware) was left exactly as it was rather than widened to
+also match path, because its own comment already explains that the culture-aware comparison is
+deliberately scoped to a display name and never a path — folding ordinal path-matching into the same
+keystroke-driven field would mix two comparison semantics behind one text box rather than extend it
+safely. No benchmark exists proving search is *fast* against a large archive — only that it is
+deterministic and that it does not materialize more than the matched subset. And the WinUI tree itself
+(`ArchiveNode.BuildTree`) still loads every entry at open time regardless of search; the new handler
+honors "without loading everything into the UI" at the Application-layer contract, not yet inside the
+screen that will eventually call it.
+
 ### DROP 08 — Shell Integration
 - **Scope:** one `NOBA` entry with a concise, context-aware submenu; correct executable path and
   arguments; multi-selection; quoted, Unicode, Arabic and long paths; Explorer refresh; startup;
@@ -767,6 +810,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-08-27 | DROP 08 — Windows Shell Integration | `…-drop-08-windows-shell-integration` | 700 / 6 | — | PASS | not run | `artifacts/test-20260827-111109/` |
 | 2026-10-18 | DROP 09 — Operations Center (concurrency) | `…-drop-09-operations-center-concurrency` | 875 / 6 | — | PASS | not run | `artifacts/test-20261018-202535/` |
 | 2026-10-18 | DROP 06 — Security (fuzzing, redaction, disk exhaustion) | `…-drop-06-security-fuzzing-and-redaction` | 888 / 6 | — | PASS | not run | `artifacts/test-20261018-215418/` |
+| 2026-10-18 | DROP 07 — Archive Intelligence (search, no AI) | `…-drop-07-archive-intelligence-search` | 904 / 6 | — | PASS | not run | `artifacts/test-20261018-224305/` |
 
 ---
 

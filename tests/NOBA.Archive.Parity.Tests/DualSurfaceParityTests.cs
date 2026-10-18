@@ -202,6 +202,49 @@ public sealed class DualSurfaceParityTests
         Assert.NotEqual(ExitCode.Success, corrupted);
     }
 
+    /// <summary>
+    /// PAR-007: what the CLI reports for a search is what the engine found, not a re-derivation — the
+    /// same discipline PAR-004 applies to <c>list</c>, now for DROP 07's <c>search</c> contract.
+    /// </summary>
+    [Fact]
+    public async Task The_cli_search_matches_the_engine_search()
+    {
+        using var sandbox = new TempDirectory("PAR-007");
+        var archive = ArchiveFactory.WriteZip(
+            sandbox.Combine("mixed.zip"),
+            ("report.txt", "alpha"),
+            ("notes.csv", "bravo"),
+            ("../escaped.txt", "owned"));
+
+        await using var host = CreateHost();
+        var engineSearch = await host.GetRequiredService<SearchArchiveHandler>().HandleAsync(
+            new SearchRequest { ArchivePath = archive, Extensions = [".txt"] },
+            CancellationToken.None);
+
+        var (exitCode, stdout, _) = await RunCliAsync(["search", archive, "--ext", ".txt", "--json"]);
+        Assert.Equal(ExitCode.Success, exitCode);
+
+        using var document = JsonDocument.Parse(stdout);
+        var root = document.RootElement;
+
+        Assert.Equal(engineSearch.Format.Id, root.GetProperty("format").GetString());
+        Assert.Equal(engineSearch.Matches.Count, root.GetProperty("matchCount").GetInt32());
+
+        var reported = root.GetProperty("matches")
+            .EnumerateArray()
+            .Select(e => e.GetProperty("path").GetString()!)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(
+            string.Join("|", engineSearch.Matches.Select(e => e.DisplayPath).Order(StringComparer.Ordinal)),
+            string.Join("|", reported));
+
+        // Both the accepted entry and the rejected traversal entry end in ".txt" - proof the filter
+        // reads DisplayPath/RawPath rather than requiring Path to be set.
+        Assert.Equal(2, engineSearch.Matches.Count);
+    }
+
     private static ServiceProvider CreateHost()
     {
         var services = new ServiceCollection();

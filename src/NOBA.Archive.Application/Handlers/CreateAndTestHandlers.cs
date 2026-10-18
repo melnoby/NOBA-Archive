@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using NOBA.Archive.Application.Operations;
 using NOBA.Archive.Application.Policies;
 using NOBA.Archive.Core.Abstractions;
@@ -394,5 +395,294 @@ public sealed class ListArchiveHandler
         }
 
         return new ListOutcome(format, session.Statistics, entries, session.NameEncoding);
+    }
+}
+
+/// <summary>
+/// Sort keys <see cref="SearchRequest"/> can ask for. Every key breaks ties by
+/// <see cref="ArchiveEntry.DisplayPath"/> (ordinal), so the same request returns the same order every
+/// time even when many entries share a key — "deterministic" is DROP 07's own exit criterion, not
+/// just a nice property.
+/// </summary>
+public enum SearchSortKey
+{
+    Path,
+    Name,
+    UncompressedSize,
+    CompressedSize,
+    Modified,
+    CompressionRatio,
+}
+
+/// <summary>
+/// Metadata-only search criteria over an archive's entry index — the contract
+/// <c>docs/ARCHITECTURE.md</c> names as <c>SearchArchiveHandler</c> ("never extracts to match a
+/// name") and nothing had ever implemented before DROP 07. Every filter here is ANDed together; a
+/// filter left null or empty does not narrow the result.
+/// </summary>
+/// <remarks>
+/// <see cref="NameContains"/> and <see cref="Extensions"/> match ordinally, never culture-aware — the
+/// same rule <c>ArchiveNode.Summarise</c> and <c>BrowseViewModel.Matches</c> already document: a
+/// culture-sensitive comparison this close to a path is a defect waiting to be exploited, and this
+/// handler's matches are consumed as paths (filters, a future automation layer), not merely displayed
+/// as text. Culture-aware display-name search stays exactly where it already lives, in the
+/// Presentation layer, as a separate concern.
+/// </remarks>
+public sealed record SearchRequest
+{
+    public required string ArchivePath { get; init; }
+
+    public ArchiveFormat? ForceFormat { get; init; }
+
+    /// <summary>Forces the legacy entry-name code page ("Open as…"). Null lets detection decide.</summary>
+    public int? LegacyNameCodePage { get; init; }
+
+    /// <summary>Ordinal, case-insensitive substring match against the full displayed path (name AND
+    /// path, per the DROP 07 exit criterion — not name alone).</summary>
+    public string? NameContains { get; init; }
+
+    /// <summary>
+    /// Lower-cased, dot-included extensions (".txt"). An entry matches if its own extension is any one
+    /// of these. Null or empty matches every extension.
+    /// </summary>
+    public IReadOnlyList<string>? Extensions { get; init; }
+
+    public EntryKind? Kind { get; init; }
+
+    public ByteSize? MinSize { get; init; }
+
+    public ByteSize? MaxSize { get; init; }
+
+    public DateTimeOffset? ModifiedAfter { get; init; }
+
+    public DateTimeOffset? ModifiedBefore { get; init; }
+
+    /// <summary>Null means "archive order" — the only option that needs no buffering at all.</summary>
+    public SearchSortKey? SortBy { get; init; }
+
+    public bool Descending { get; init; }
+}
+
+public sealed record SearchOutcome(
+    ArchiveFormat Format,
+    ArchiveStatistics Statistics,
+    IReadOnlyList<ArchiveEntry> Matches,
+    long EntriesScanned,
+    EntryNameEncodingInfo? NameEncoding = null);
+
+/// <summary>
+/// The Application-layer search contract DROP 07 exists to build: filters entries by metadata alone
+/// and never extracts to judge a match, exactly like <see cref="ListArchiveHandler"/> beside it — the
+/// difference is that this one can throw most of the archive away before anything downstream ever
+/// sees it, which is what lets a future Intelligence layer extend it without touching the archive
+/// core.
+/// </summary>
+public sealed class SearchArchiveHandler
+{
+    private readonly IArchiveProviderRegistry _registry;
+    private readonly IFormatDetector _detector;
+    private readonly IFileSystem _fileSystem;
+    private readonly IPasswordProvider _passwords;
+
+    public SearchArchiveHandler(
+        IArchiveProviderRegistry registry,
+        IFormatDetector detector,
+        IFileSystem fileSystem,
+        IPasswordProvider passwords)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(detector);
+        ArgumentNullException.ThrowIfNull(fileSystem);
+        ArgumentNullException.ThrowIfNull(passwords);
+
+        _registry = registry;
+        _detector = detector;
+        _fileSystem = fileSystem;
+        _passwords = passwords;
+    }
+
+    /// <summary>
+    /// Streams every matching entry in archive order, holding at most one entry's metadata at a time —
+    /// this is the "large-archive browsing without loading everything into the UI" half of the exit
+    /// criterion. There is deliberately no sort here: placing the first result in a sorted order
+    /// requires having seen every match, which is exactly the buffering this method exists to avoid.
+    /// Use <see cref="HandleAsync"/> when a sorted, archive-level result — counts, format, matches
+    /// together — is what the caller actually wants, such as a CLI table or a results list.
+    /// </summary>
+    public async IAsyncEnumerable<ArchiveEntry> StreamAsync(
+        SearchRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var format = await ArchiveOpener
+            .ResolveFormatAsync(request.ArchivePath, request.ForceFormat, _fileSystem, _detector, cancellationToken)
+            .ConfigureAwait(false);
+
+        var required = ArchiveCapabilities.Open | ArchiveCapabilities.ListEntries;
+        var provider = _registry.Resolve(format, required)
+            ?? throw new ArchiveOperationException(
+                CapabilityGate.Check(_registry.CapabilitiesFor(format), required, format)!);
+
+        await using var stream = _fileSystem.OpenRead(request.ArchivePath);
+        await using var session = await provider
+            .OpenAsync(
+                ArchiveSource.FromStream(stream, Path.GetFileName(request.ArchivePath)),
+                new OpenOptions { ForceFormat = format, LegacyNameCodePage = request.LegacyNameCodePage },
+                _passwords,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        await foreach (var entry in session.ListEntriesAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (Matches(entry, request))
+            {
+                yield return entry;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The sorted, archive-level shape: matches plus the format/statistics/encoding a results view
+    /// wants alongside them. Only the matched subset is ever held in memory — an archive with a
+    /// million entries and five matches buffers five, not a million, even when
+    /// <see cref="SearchRequest.SortBy"/> asks for an order <see cref="StreamAsync"/> alone cannot give.
+    /// </summary>
+    public async Task<SearchOutcome> HandleAsync(SearchRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var format = await ArchiveOpener
+            .ResolveFormatAsync(request.ArchivePath, request.ForceFormat, _fileSystem, _detector, cancellationToken)
+            .ConfigureAwait(false);
+
+        var required = ArchiveCapabilities.Open | ArchiveCapabilities.ListEntries;
+        var provider = _registry.Resolve(format, required)
+            ?? throw new ArchiveOperationException(
+                CapabilityGate.Check(_registry.CapabilitiesFor(format), required, format)!);
+
+        await using var stream = _fileSystem.OpenRead(request.ArchivePath);
+        await using var session = await provider
+            .OpenAsync(
+                ArchiveSource.FromStream(stream, Path.GetFileName(request.ArchivePath)),
+                new OpenOptions { ForceFormat = format, LegacyNameCodePage = request.LegacyNameCodePage },
+                _passwords,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var matches = new List<ArchiveEntry>();
+        long scanned = 0;
+        await foreach (var entry in session.ListEntriesAsync(cancellationToken).ConfigureAwait(false))
+        {
+            scanned++;
+            if (Matches(entry, request))
+            {
+                matches.Add(entry);
+            }
+        }
+
+        if (request.SortBy is { } sortBy)
+        {
+            matches = Sort(matches, sortBy, request.Descending);
+        }
+
+        return new SearchOutcome(format, session.Statistics, matches, scanned, session.NameEncoding);
+    }
+
+    /// <summary>
+    /// Every filter ANDed together, matched against metadata alone — the path string and the fields
+    /// already on <see cref="ArchiveEntry"/>, never a byte of content. A rejected entry (null
+    /// <see cref="ArchiveEntry.Path"/>) still has a name worth matching, so a filter that needs a path
+    /// reads <see cref="ArchiveEntry.DisplayPath"/>/<see cref="ExtensionOf"/> rather than requiring
+    /// <see cref="ArchiveEntry.Path"/> to be set: a security sweep for ".exe" should still find one even
+    /// though the entry was already refused for an unrelated reason.
+    /// </summary>
+    private static bool Matches(ArchiveEntry entry, SearchRequest request)
+    {
+        if (request.Kind is { } kind && entry.Kind != kind)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(request.NameContains) &&
+            entry.DisplayPath.IndexOf(request.NameContains, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return false;
+        }
+
+        if (request.Extensions is { Count: > 0 } extensions &&
+            !extensions.Contains(ExtensionOf(entry.DisplayPath), StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (request.MinSize is { } minSize && entry.UncompressedSize.Bytes < minSize.Bytes)
+        {
+            return false;
+        }
+
+        if (request.MaxSize is { } maxSize && entry.UncompressedSize.Bytes > maxSize.Bytes)
+        {
+            return false;
+        }
+
+        if (request.ModifiedAfter is { } after && (entry.Modified is null || entry.Modified < after))
+        {
+            return false;
+        }
+
+        if (request.ModifiedBefore is { } before && (entry.Modified is null || entry.Modified > before))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Same convention as <see cref="ArchivePath.Extension"/> (lower-cased, dot included, "" when
+    /// none), computed directly from the displayed path so it also works for a rejected entry, where
+    /// <see cref="ArchiveEntry.Path"/> is null and <see cref="ArchivePath.Extension"/> is unreachable.
+    /// Accepts either path separator: a rejected entry's raw path is whatever the archive stored,
+    /// including a backslash that never made it through <see cref="ArchivePath.TryCreate"/>.
+    /// </summary>
+    private static string ExtensionOf(string displayPath)
+    {
+        var separator = displayPath.LastIndexOfAny(['/', '\\']);
+        var name = separator < 0 ? displayPath : displayPath[(separator + 1)..];
+        var dot = name.LastIndexOf('.');
+        return dot <= 0 || dot == name.Length - 1 ? string.Empty : name[dot..].ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Stable (LINQ's <c>OrderBy</c>/<c>OrderByDescending</c> guarantee it) and always tie-broken by
+    /// <see cref="ArchiveEntry.DisplayPath"/> (ordinal) regardless of <paramref name="descending"/>, so
+    /// the same request returns the same order every time even when many entries share a sort key.
+    /// </summary>
+    private static List<ArchiveEntry> Sort(List<ArchiveEntry> matches, SearchSortKey key, bool descending)
+    {
+        IOrderedEnumerable<ArchiveEntry> ordered = key switch
+        {
+            SearchSortKey.Name => descending
+                ? matches.OrderByDescending(static e => e.Path?.FileName ?? e.RawPath, StringComparer.Ordinal)
+                : matches.OrderBy(static e => e.Path?.FileName ?? e.RawPath, StringComparer.Ordinal),
+            SearchSortKey.UncompressedSize => descending
+                ? matches.OrderByDescending(static e => e.UncompressedSize.Bytes)
+                : matches.OrderBy(static e => e.UncompressedSize.Bytes),
+            SearchSortKey.CompressedSize => descending
+                ? matches.OrderByDescending(static e => e.CompressedSize.Bytes)
+                : matches.OrderBy(static e => e.CompressedSize.Bytes),
+            SearchSortKey.Modified => descending
+                ? matches.OrderByDescending(static e => e.Modified ?? DateTimeOffset.MinValue)
+                : matches.OrderBy(static e => e.Modified ?? DateTimeOffset.MinValue),
+            SearchSortKey.CompressionRatio => descending
+                ? matches.OrderByDescending(static e => e.CompressionRatio ?? -1d)
+                : matches.OrderBy(static e => e.CompressionRatio ?? -1d),
+            _ => descending
+                ? matches.OrderByDescending(static e => e.DisplayPath, StringComparer.Ordinal)
+                : matches.OrderBy(static e => e.DisplayPath, StringComparer.Ordinal),
+        };
+
+        return [.. ordered.ThenBy(static e => e.DisplayPath, StringComparer.Ordinal)];
     }
 }

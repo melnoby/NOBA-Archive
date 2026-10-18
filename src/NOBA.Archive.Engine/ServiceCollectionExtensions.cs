@@ -88,6 +88,7 @@ public static class ServiceCollectionExtensions
         // Application
         services.TryAddSingleton<OperationIdFactory>();
         services.TryAddSingleton<ListArchiveHandler>();
+        services.TryAddSingleton<SearchArchiveHandler>();
         services.TryAddSingleton<TestArchiveHandler>();
         services.TryAddSingleton<ExtractArchiveHandler>();
         services.TryAddSingleton<CreateArchiveHandler>();

@@ -79,6 +79,7 @@ public sealed class CliApplication
                 ShellRegistration.ResolverVerb =>
                     await ShellResolveAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 "list" => await ListAsync(io, parsed, cancellationToken).ConfigureAwait(false),
+                "search" => await SearchAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 "info" => await InfoAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 "test" => await TestAsync(io, parsed, cancellationToken).ConfigureAwait(false),
                 "extract" => await ExtractAsync(io, parsed, cancellationToken).ConfigureAwait(false),
@@ -533,6 +534,189 @@ public sealed class CliApplication
         return ExitCode.Success;
     }
 
+    /// <summary>
+    /// DROP 07: the CLI's half of the <see cref="SearchArchiveHandler"/> contract — proof the new
+    /// Application-layer handler is reachable end to end, not merely unit-tested in isolation, and
+    /// exposed through the same surface the desktop app's own search will eventually call into
+    /// (ADR-0009: one engine, two surfaces).
+    /// </summary>
+    private async Task<ExitCode> SearchAsync(CliOutput io, ParsedCommandLine parsed, CancellationToken cancellationToken)
+    {
+        if (!TryGetArchive(io, parsed, out var archive))
+        {
+            return ExitCode.UsageError;
+        }
+
+        if (!TryParseSearchRequest(io, archive, parsed, out var request))
+        {
+            return ExitCode.UsageError;
+        }
+
+        using var password = ReadPassword(parsed);
+        await using var services = CreateHostServices(password: password);
+
+        var outcome = await services.GetRequiredService<SearchArchiveHandler>()
+            .HandleAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        var matches = outcome.Matches.Select(static e => new CliEntryPayload(
+            e.DisplayPath,
+            e.IsDirectory,
+            e.UncompressedSize.Bytes,
+            e.CompressedSize.Bytes,
+            e.Modified,
+            e.IsEncrypted,
+            e.Rejection?.Reason.ToString())).ToList();
+
+        io.WriteResult(new CliSearchPayload(archive, outcome.Format.Id, outcome.EntriesScanned, matches.Count, matches));
+
+        io.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"{matches.Count:N0} of {outcome.EntriesScanned:N0} entr(ies) matched."));
+        foreach (var entry in matches)
+        {
+            var marker = entry.BlockedReason is not null ? "!" : entry.IsDirectory ? "d" : " ";
+            io.WriteLine($"{marker} {entry.UncompressedSize,12:N0}  {entry.Path}");
+        }
+
+        return ExitCode.Success;
+    }
+
+    /// <summary>Parses every <c>search</c>-only option into one <see cref="SearchRequest"/>, or reports
+    /// exactly which option was unusable rather than failing the whole command silently.</summary>
+    private static bool TryParseSearchRequest(
+        CliOutput io, string archive, ParsedCommandLine parsed, out SearchRequest request)
+    {
+        request = null!;
+
+        IReadOnlyList<string>? extensions = null;
+        if (parsed.Option("ext") is { } extValue)
+        {
+            extensions = [.. extValue
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(static e => e.StartsWith('.') ? e : "." + e)];
+        }
+
+        EntryKind? kind = null;
+        if (parsed.Option("kind") is { } kindValue)
+        {
+            if (!TryParseEntryKind(kindValue, out var parsedKind))
+            {
+                io.WriteError($"'{kindValue}' is not an entry kind. Use file, directory, symlink, hardlink or special.");
+                return false;
+            }
+
+            kind = parsedKind;
+        }
+
+        if (!TryParseByteSizeOption(io, parsed, "min-size", out var minSize) ||
+            !TryParseByteSizeOption(io, parsed, "max-size", out var maxSize))
+        {
+            return false;
+        }
+
+        if (!TryParseTimestampOption(io, parsed, "modified-after", out var after) ||
+            !TryParseTimestampOption(io, parsed, "modified-before", out var before))
+        {
+            return false;
+        }
+
+        SearchSortKey? sortBy = null;
+        if (parsed.Option("sort") is { } sortValue)
+        {
+            if (!TryParseSortKey(sortValue, out var parsedSort))
+            {
+                io.WriteError(
+                    $"'{sortValue}' is not a sort key. Use path, name, size, compressed-size, modified or ratio.");
+                return false;
+            }
+
+            sortBy = parsedSort;
+        }
+
+        request = new SearchRequest
+        {
+            ArchivePath = archive,
+            LegacyNameCodePage = NameCodePage(parsed),
+            NameContains = parsed.Option("name"),
+            Extensions = extensions,
+            Kind = kind,
+            MinSize = minSize,
+            MaxSize = maxSize,
+            ModifiedAfter = after,
+            ModifiedBefore = before,
+            SortBy = sortBy,
+            Descending = parsed.HasFlag("desc"),
+        };
+        return true;
+    }
+
+    private static bool TryParseByteSizeOption(CliOutput io, ParsedCommandLine parsed, string option, out ByteSize? size)
+    {
+        size = null;
+        var value = parsed.Option(option);
+        if (value is null)
+        {
+            return true;
+        }
+
+        if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bytes) || bytes < 0)
+        {
+            io.WriteError($"'{value}' is not a valid --{option} (a non-negative number of bytes).");
+            return false;
+        }
+
+        size = ByteSize.FromBytes(bytes);
+        return true;
+    }
+
+    private static bool TryParseTimestampOption(
+        CliOutput io, ParsedCommandLine parsed, string option, out DateTimeOffset? timestamp)
+    {
+        timestamp = null;
+        var value = parsed.Option(option);
+        if (value is null)
+        {
+            return true;
+        }
+
+        if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedValue))
+        {
+            io.WriteError($"'{value}' is not a valid --{option} timestamp. Use an ISO-8601 date or date-time.");
+            return false;
+        }
+
+        timestamp = parsedValue;
+        return true;
+    }
+
+    private static bool TryParseEntryKind(string value, out EntryKind kind)
+    {
+        switch (value.ToLowerInvariant())
+        {
+            case "file": kind = EntryKind.File; return true;
+            case "directory": case "dir": kind = EntryKind.Directory; return true;
+            case "symlink": case "symboliclink": kind = EntryKind.SymbolicLink; return true;
+            case "hardlink": kind = EntryKind.HardLink; return true;
+            case "special": kind = EntryKind.Special; return true;
+            default: kind = default; return false;
+        }
+    }
+
+    private static bool TryParseSortKey(string value, out SearchSortKey key)
+    {
+        switch (value.ToLowerInvariant())
+        {
+            case "path": key = SearchSortKey.Path; return true;
+            case "name": key = SearchSortKey.Name; return true;
+            case "size": case "uncompressed-size": key = SearchSortKey.UncompressedSize; return true;
+            case "compressed-size": key = SearchSortKey.CompressedSize; return true;
+            case "modified": key = SearchSortKey.Modified; return true;
+            case "ratio": case "compression-ratio": key = SearchSortKey.CompressionRatio; return true;
+            default: key = default; return false;
+        }
+    }
+
     private async Task<ExitCode> InfoAsync(CliOutput io, ParsedCommandLine parsed, CancellationToken cancellationToken)
     {
         if (!TryGetArchive(io, parsed, out var archive))
@@ -892,6 +1076,7 @@ public sealed class CliApplication
         io.WriteLine(string.Empty);
         io.WriteLine("Commands:");
         io.WriteLine("  list <archive>                     List entries without extracting anything");
+        io.WriteLine("  search <archive>                   Filter and sort entries by metadata, without extracting");
         io.WriteLine("  info <archive>                     Summarise format, entry counts and sizes");
         io.WriteLine("  test <archive>                     Verify integrity");
         io.WriteLine("  extract <archive> [entries...]     Extract to -o <folder>");
@@ -918,6 +1103,15 @@ public sealed class CliApplication
         io.WriteLine("  --help                             Show this text");
         io.WriteLine(string.Empty);
         io.WriteLine("  --name-encoding <cp>  read legacy entry names as this code page (1256, 1252, 437...)");
+        io.WriteLine(string.Empty);
+        io.WriteLine("Search options (ordinal, deterministic - never culture-aware):");
+        io.WriteLine("  --name <text>                      Substring match against the full path, not just the file name");
+        io.WriteLine("  --ext <.txt,.csv>                  One or more extensions, comma-separated");
+        io.WriteLine("  --kind file|directory|symlink|hardlink|special");
+        io.WriteLine("  --min-size / --max-size <bytes>    Uncompressed size range (inclusive)");
+        io.WriteLine("  --modified-after / --modified-before <ISO-8601>");
+        io.WriteLine("  --sort path|name|size|compressed-size|modified|ratio");
+        io.WriteLine("  --desc                             Reverse the sort (ties still break by path)");
         io.WriteLine("Passwords are read from stdin (--password-stdin) or an ACL-checked file");
         io.WriteLine("(--password-file). They are never accepted as a command-line argument or an");
         io.WriteLine("environment variable: on Windows another process running as the same user can");

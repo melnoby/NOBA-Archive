@@ -86,6 +86,13 @@ public sealed record CliListPayload(
     string? NameEncoding = null,
     bool NameEncodingIsGuess = false);
 
+public sealed record CliSearchPayload(
+    string Archive,
+    string Format,
+    long EntriesScanned,
+    int MatchCount,
+    IReadOnlyList<CliEntryPayload> Matches);
+
 public sealed record CliInfoPayload(
     string Archive,
     string Format,

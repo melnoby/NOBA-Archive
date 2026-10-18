@@ -107,6 +107,26 @@ internal sealed class EngineFixture : IAsyncDisposable
     public ValueTask<ListOutcome> ListAsync(string archivePath, CancellationToken cancellationToken = default) =>
         new(Get<ListArchiveHandler>().HandleAsync(new ListRequest { ArchivePath = archivePath }, cancellationToken));
 
+    public ValueTask<SearchOutcome> SearchAsync(
+        string archivePath,
+        Action<SearchRequestBuilder>? configure = null,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = new SearchRequestBuilder(archivePath);
+        configure?.Invoke(builder);
+        return new(Get<SearchArchiveHandler>().HandleAsync(builder.Build(), cancellationToken));
+    }
+
+    public IAsyncEnumerable<ArchiveEntry> StreamSearchAsync(
+        string archivePath,
+        Action<SearchRequestBuilder>? configure = null,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = new SearchRequestBuilder(archivePath);
+        configure?.Invoke(builder);
+        return Get<SearchArchiveHandler>().StreamAsync(builder.Build(), cancellationToken);
+    }
+
     public ValueTask<ArchiveTestResult> TestAsync(string archivePath, CancellationToken cancellationToken = default)
     {
         var id = Get<OperationIdFactory>().Next(OperationType.Test);
@@ -190,4 +210,54 @@ internal sealed class ExtractionOptionsBuilder
     }
 
     public ExtractionOptions Build() => _options;
+}
+
+/// <summary>A small fluent builder so a search test reads as "what it's asking for", not record syntax.</summary>
+internal sealed class SearchRequestBuilder
+{
+    private SearchRequest _request;
+
+    public SearchRequestBuilder(string archivePath) => _request = new SearchRequest { ArchivePath = archivePath };
+
+    public SearchRequestBuilder NameContains(string text)
+    {
+        _request = _request with { NameContains = text };
+        return this;
+    }
+
+    public SearchRequestBuilder Extensions(params string[] extensions)
+    {
+        _request = _request with { Extensions = extensions };
+        return this;
+    }
+
+    public SearchRequestBuilder Kind(EntryKind kind)
+    {
+        _request = _request with { Kind = kind };
+        return this;
+    }
+
+    public SearchRequestBuilder SizeBetween(long? minBytes, long? maxBytes)
+    {
+        _request = _request with
+        {
+            MinSize = minBytes is { } min ? ByteSize.FromBytes(min) : null,
+            MaxSize = maxBytes is { } max ? ByteSize.FromBytes(max) : null,
+        };
+        return this;
+    }
+
+    public SearchRequestBuilder ModifiedBetween(DateTimeOffset? after, DateTimeOffset? before)
+    {
+        _request = _request with { ModifiedAfter = after, ModifiedBefore = before };
+        return this;
+    }
+
+    public SearchRequestBuilder SortedBy(SearchSortKey key, bool descending = false)
+    {
+        _request = _request with { SortBy = key, Descending = descending };
+        return this;
+    }
+
+    public SearchRequest Build() => _request;
 }

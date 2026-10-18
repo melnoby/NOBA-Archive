@@ -36,6 +36,8 @@ public static class CommandLineParser
         // positional argument and the option reads as absent - which is how `--publisher CN=...`
         // silently became "publisher is required".
         "publisher", "package-version",
+        // search (DROP 07).
+        "name", "ext", "kind", "min-size", "max-size", "modified-after", "modified-before", "sort",
     };
 
     public static bool TryParse(

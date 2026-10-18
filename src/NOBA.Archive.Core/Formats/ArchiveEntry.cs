@@ -52,6 +52,16 @@ public sealed record ArchiveEntry
 
     public bool IsRejected => Rejection is not null;
 
+    /// <summary>
+    /// Compressed over uncompressed for this one entry, or null when there is nothing to divide by.
+    /// Same null-when-zero convention as <see cref="ArchiveStatistics.CompressionRatio"/>, so a
+    /// directory entry (always zero bytes either way) reports "no ratio" rather than a misleading 0.
+    /// </summary>
+    public double? CompressionRatio =>
+        UncompressedSize.Bytes == 0
+            ? null
+            : (double)CompressedSize.Bytes / UncompressedSize.Bytes;
+
     public bool IsDirectory => Kind == EntryKind.Directory;
 
     public bool IsLink => Kind is EntryKind.SymbolicLink or EntryKind.HardLink;
