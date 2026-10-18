@@ -5,10 +5,12 @@ using NOBA.Archive.App.Services;
 using NOBA.Archive.Core.Abstractions;
 using NOBA.Archive.Core.Actions;
 using NOBA.Archive.Engine;
+using NOBA.Archive.Infrastructure.Logging;
 using NOBA.Archive.Presentation.Bidi;
 using NOBA.Archive.Presentation.Design;
 using NOBA.Archive.Presentation.Interaction;
 using NOBA.Archive.Presentation.Services;
+using NOBA.Archive.Security;
 
 namespace NOBA.Archive.App;
 
@@ -80,7 +82,15 @@ public partial class App : Microsoft.UI.Xaml.Application
         _dialogs = dialogs;
 
         var services = new ServiceCollection();
-        services.AddLogging();
+
+        // SEC-024 (DROP 06): same gap the CLI's CreateHostServices closes, and the same fix - the
+        // redactor is built here, not resolved from the container, because AddRedaction has to
+        // rewrite the ILoggerProvider registrations before the provider exists. WINDOWS-UNVERIFIED:
+        // this file is WinUI-only and cannot be compiled or exercised from Linux; it is reviewed by
+        // inspection against the same pattern CliApplication.cs now has test coverage for.
+        var redactor = new SecretRedactor();
+        services.AddSingleton<ISecretRedactor>(redactor);
+        services.AddLogging(builder => builder.AddRedaction(redactor));
         services.AddNobaArchiveEngine(options =>
         {
             // A desktop app has a user, so it may prompt. Conflicts and passwords are asked, not assumed.

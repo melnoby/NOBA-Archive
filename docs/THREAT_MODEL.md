@@ -247,8 +247,16 @@ NOBA Archive does not ship 1.0 unless:
 
 - [ ] Every `SEC-###` test in [TESTING.md](TESTING.md) exists and passes.
 - [ ] A fuzz run over ZIP/7Z/TAR/RAR parsing completes with no crash and no unhandled exception.
-- [ ] No path in the codebase writes to the destination outside the extraction writer (architecture test).
-- [ ] The redaction test passes for every logging sink.
+      *(`FUZ-001…003`, PRODUCT_PLAN.md DROP 06: done for ZIP/TAR/GZIP — 1,800 mutated parses, zero
+      crashes. 7Z/RAR need `7z.dll`, not present on the Linux build machine; tracked as L34. Left
+      unchecked until a Windows run covers the native half.)*
+- [x] No path in the codebase writes to the destination outside the extraction writer (architecture test).
+      *(`Nothing_outside_infrastructure_writes_to_the_filesystem_by_path`, Architecture.Tests — DROP 06.)*
+- [x] The redaction test passes for every logging sink.
+      *(`SEC-024`, `CompositionRootRedactionTests.cs` — DROP 06. Proves the real `CliApplication.
+      CreateHostServices` composition root, not only the isolated `RedactingLoggerProvider`; the
+      WinUI `App.xaml.cs` call site got the identical fix but is WINDOWS-UNVERIFIED, reviewed by
+      inspection only.)*
 - [ ] Extraction is verified to preserve MOTW.
 - [ ] `7z.dll` is at the latest patched upstream version, with its CVE history reviewed at release time.
 - [ ] A written security review of the extraction writer has been completed and signed off (Phase 7).

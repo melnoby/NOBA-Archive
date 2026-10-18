@@ -12,6 +12,8 @@ using NOBA.Archive.Core.Formats;
 using NOBA.Archive.Core.Operations;
 using NOBA.Archive.Core.Primitives;
 using NOBA.Archive.Engine;
+using NOBA.Archive.Infrastructure.Logging;
+using NOBA.Archive.Security;
 
 namespace NOBA.Archive.Cli.Commands;
 
@@ -98,12 +100,34 @@ public sealed class CliApplication
     /// Builds the CLI's service container. Public so the parity suite can assert that the CLI and the
     /// desktop app resolve the same engine implementations rather than two lookalikes (ADR-0009).
     /// </summary>
+    /// <param name="configureLogging">
+    /// SEC-024 (DROP 06): a seam so a test can register a fake <c>ILoggerProvider</c> sink and prove
+    /// the real composition root redacts secrets end-to-end — not just the isolated
+    /// <see cref="RedactingLoggerProvider"/> class, which <c>RedactionTests.cs</c> already covers on
+    /// its own. Anything this adds is still wrapped: <c>AddRedaction</c> below runs after it.
+    /// </param>
     public static ServiceProvider CreateHostServices(
         ConflictPolicy conflictPolicy = ConflictPolicy.Fail,
-        Password? password = null)
+        Password? password = null,
+        Action<ILoggingBuilder>? configureLogging = null)
     {
         var services = new ServiceCollection();
-        services.AddLogging(static b => b.SetMinimumLevel(LogLevel.Warning));
+
+        // The redactor is constructed here, not resolved from the container, because AddRedaction
+        // has to rewrite the ILoggerProvider registrations before the provider is ever built - the
+        // chicken-and-egg that left this gap open: RedactingLoggerProvider had its own passing unit
+        // tests, but nothing in either real composition root (here, or App.xaml.cs) ever called
+        // AddRedaction, so a sink added without separately remembering it would log secrets in
+        // plain text. Registering the same instance as the singleton below keeps the engine's own
+        // ISecretRedactor consumers and the log-wrapping on one redactor rather than two.
+        var redactor = new SecretRedactor();
+        services.AddSingleton<ISecretRedactor>(redactor);
+        services.AddLogging(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Warning);
+            configureLogging?.Invoke(builder);
+            builder.AddRedaction(redactor);
+        });
         services.AddNobaArchiveEngine(options =>
         {
             // The CLI is headless by definition: it must never block waiting for a human.

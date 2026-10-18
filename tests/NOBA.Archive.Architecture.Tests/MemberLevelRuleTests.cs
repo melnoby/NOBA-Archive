@@ -173,6 +173,73 @@ public sealed class MemberLevelRuleTests
         Assert.Contains("never fall back to a PATH lookup", order);
     }
 
+    /// <summary>
+    /// THREAT_MODEL.md §6's acceptance gate names "nothing outside the extraction writer writes to
+    /// the destination" as a checklist item that nothing in the repository actually enforced — it was
+    /// true by inspection, never by a test that would fail the build the day it stopped being true.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Narrower than <see cref="Does_not_touch_the_filesystem_directly"/> above: that rule bans
+    /// <em>any</em> reference to <c>File</c>/<c>Directory</c> outright, which is why it cannot cover
+    /// the CLI or the native backend — both legitimately call read-only members (<c>File.Exists</c>,
+    /// <c>File.ReadAllText</c>) and would fail that rule for reasons that have nothing to do with
+    /// writing. This rule instead names the mutating members themselves, so it can police every
+    /// assembly except <c>NOBA.Archive.Infrastructure</c> — including the two the blanket rule has to
+    /// leave out — without forbidding the reads those two already do.
+    /// </para>
+    /// <para>
+    /// <c>FileStream</c>'s own write members (<c>Write</c>, <c>WriteByte</c>, <c>SetLength</c>) are not
+    /// named here: a constructed <c>FileStream</c> only ever reaches another assembly as a <c>Stream</c>
+    /// returned from <see cref="IFileSystem.OpenRead"/> or <see cref="IFileSystem.CreateNew"/>, and
+    /// <c>Stream.Write</c>/<c>WriteAsync</c> are inherited members no metadata scan can attribute to a
+    /// specific concrete type — banning them would also ban writing to an in-memory buffer. What this
+    /// rule can see, and does ban, is every member that names its target by a path string rather than
+    /// a <c>Stream</c> the caller already holds, which is exactly the shape a write that bypassed
+    /// <see cref="IFileSystem"/> would take.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("NOBA.Archive.Core")]
+    [InlineData("NOBA.Archive.Security")]
+    [InlineData("NOBA.Archive.Application")]
+    [InlineData("NOBA.Archive.Formats")]
+    [InlineData("NOBA.Archive.Engine")]
+    [InlineData("NOBA.Archive.Windows")]
+    [InlineData("NOBA.Archive.Cli")]
+    [InlineData("NOBA.Archive.Backends.SevenZip")]
+    public void Nothing_outside_infrastructure_writes_to_the_filesystem_by_path(string assemblyName)
+    {
+        string[] mutatingTypes = ["File", "Directory", "FileInfo", "DirectoryInfo"];
+        string[] mutatingMembers =
+        [
+            "Create", "CreateText", "CreateDirectory", "CreateSubdirectory",
+            "OpenWrite", "AppendText",
+            "WriteAllText", "WriteAllLines", "WriteAllBytes", "WriteAllTextAsync", "WriteAllLinesAsync", "WriteAllBytesAsync",
+            "AppendAllText", "AppendAllLines", "AppendAllTextAsync", "AppendAllLinesAsync",
+            "Copy", "CopyTo", "Move", "MoveTo", "Replace",
+            "Delete",
+            "SetAttributes", "SetCreationTime", "SetCreationTimeUtc",
+            "SetLastWriteTime", "SetLastWriteTimeUtc", "SetLastAccessTime", "SetLastAccessTimeUtc",
+            "Encrypt", "Decrypt",
+        ];
+
+        var probe = AssemblyProbe.Load(assemblyName);
+
+        var violations = probe.MemberReferences
+            .Where(m => mutatingTypes.Contains(m.TypeName, StringComparer.Ordinal))
+            .Where(m => m.TypeNamespace is "System.IO")
+            .Where(m => mutatingMembers.Contains(m.MemberName, StringComparer.Ordinal))
+            .Select(static m => $"{m.FullTypeName}.{m.MemberName}")
+            .Distinct()
+            .ToList();
+
+        Assert.True(
+            violations.Count == 0,
+            $"{assemblyName} writes to the filesystem by path via {string.Join(", ", violations)}. " +
+            "Only NOBA.Archive.Infrastructure may; route writes through IFileSystem instead.");
+    }
+
     /// <summary>Every engine assembly must be usable from a host with no UI at all.</summary>
     [Fact]
     public void No_engine_assembly_depends_on_a_ui_framework()

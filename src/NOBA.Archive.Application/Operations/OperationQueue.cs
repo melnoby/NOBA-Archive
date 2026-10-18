@@ -243,6 +243,7 @@ public sealed class OperationQueue : IOperationQueue
             entry.Cancellation.Token,
             _shutdown.Token);
 
+        bool acquiredDuringShutdown;
         try
         {
             // Everything enqueued earlier has reached the slot gate before this one asks for a slot,
@@ -251,6 +252,29 @@ public sealed class OperationQueue : IOperationQueue
             // its own admission is released in the finally below either way.
             await predecessor.ConfigureAwait(false);
             await _slots.WaitAsync(linked.Token).ConfigureAwait(false);
+
+            // SemaphoreSlim.WaitAsync races "a slot became available" against "the token fired"
+            // internally, and either can win; during shutdown the slot this entry just took can only
+            // have come from another entry's cancellation unwinding (DisposeAsync cancels _shutdown
+            // before awaiting any runner), so a successful acquisition here does not by itself mean
+            // this entry is clear to start.
+            //
+            // This checks the source tokens directly rather than linked.Token: CreateLinkedTokenSource
+            // propagates a source's cancellation to the linked token via a registered callback, and
+            // that callback had not always finished running by the time WaitAsync's own race was
+            // decided — linked.Token.IsCancellationRequested could still read false here for a few
+            // more scheduler steps after _shutdown.IsCancellationRequested was already true. Checking
+            // the source directly has no such lag: CancelAsync/Cancel set it before either returns.
+            // Found as a repeated-run failure (DisposeAsync leaving a queued operation Completed
+            // instead of Cancelled roughly one run in five with a single slot and one entry already
+            // running), the same way OPQ-019 was found, and the first fix attempt — checking
+            // linked.Token.IsCancellationRequested instead of the sources — looked right and still
+            // left the same flake measurable across repeated runs.
+            acquiredDuringShutdown = _shutdown.IsCancellationRequested || entry.Cancellation.IsCancellationRequested;
+            if (acquiredDuringShutdown)
+            {
+                _slots.Release();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -262,6 +286,12 @@ public sealed class OperationQueue : IOperationQueue
             // Released once this entry holds a slot or has given up trying — either way the next
             // operation may now compete, and the chain cannot deadlock on an entry that never ran.
             entry.Admitted?.TrySetResult();
+        }
+
+        if (acquiredDuringShutdown)
+        {
+            Apply(entry, OperationTrigger.Cancel);
+            return;
         }
 
         try

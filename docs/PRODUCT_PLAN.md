@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-09-operations-center-concurrency`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-06-security-fuzzing-and-redaction`
 
 ---
 
@@ -241,6 +241,7 @@ rather than transcribed.
 | L31 | Batch archive actions are absent. Open, Test and both Extracts require exactly one archive | a later drop |
 | L32 | `Compress to` does not avoid a name collision. The engine refuses an occupied target through the existing overwrite contract rather than the menu inventing "name (2).7z" | by design |
 | L33 | **Concurrent operations against the native 7Z/RAR backend are unverified.** DROP 09 proved `OperationQueue` and the real `CreateArchiveHandler`/`ExtractArchiveHandler` safe under genuine concurrency for the managed ZIP provider (OPQ-025…027, OPX-017…019) and the `EngineWorkspace` outcome-parking pattern in isolation — but `7z.dll` is not present on the Linux build machine, so whether two simultaneous `IInArchive`/`IOutArchive` handler objects from `SevenZipLibrary.CreateObject` are safe has no automated coverage anywhere, and `EngineWorkspace` itself (`NOBA.Archive.App`, Windows-only) has never been exercised under concurrency either. The shipped default stays `MaxConcurrentOperations = 1` partly for this reason | a Windows concurrency gate |
+| L34 | **The fuzz harness (FUZ-001…003) covers only ZIP/TAR/GZIP.** THREAT_MODEL.md §6's acceptance gate names "ZIP/7Z/TAR/RAR" as one item; 7Z and RAR parse through `7z.dll`, which is not present on the Linux build machine, so that half has no automated fuzz coverage anywhere and is not claimed as covered by the managed-format result | a Windows fuzzing gate |
 
 ---
 
@@ -291,7 +292,7 @@ the running app. A SKIP it prints is not a pass.
 | 03 | Archive Management | 02, 05¹ | honest capability reporting | `TODO` | — |
 | 04 | Production Extraction | 01 | conflict policy UX | `LINUX` | WinUI build + the extraction gate below |
 | 05 | Format & Capability Expansion | 01 | four providers do not exist yet | `LINUX` | WinUI build + the Windows format gate; BZIP2/XZ and composite tar BLOCKED by design |
-| 06 | Security | 04, 05 | adversarial corpus needs building | `TODO` | — |
+| 06 | Security | 04, 05 | adversarial corpus needs building | `LINUX` | WinUI build + a Windows run; 7Z/RAR fuzzing (L34) remains unverified by design |
 | 07 | Archive Intelligence (no AI) | 05 | large-archive listing performance | `TODO` | — |
 | 08 | Shell Integration | 02, 04, packaging | needs a real installer; Windows-only verification | `TODO` | — |
 | 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
@@ -570,6 +571,63 @@ is derived, not written down, so it shrinks honestly on a machine missing the na
   password in any log, description, history entry or diagnostic; **NOBA fails safely** is
   demonstrated, not asserted.
 
+#### What this drop found, rather than built
+
+Most of Scope's named shapes — traversal, destination escape, reserved names, symlink/reparse,
+bombs, oversized entries — were already covered by `SEC-001…023` before this drop opened (Security
++ Integration suites, all passing). What THREAT_MODEL.md's own §6 acceptance gate named and nothing
+in the repository yet proved were three specific items, closed here:
+
+1. **Resource and disk exhaustion, the part that reads real free space.** `DiskSpaceEstimator`
+   (`NOBA.Archive.Application.Policies`) existed and was registered in the container, but was never
+   called — `ResourceGuardTests.cs` only ever checked a fixed configured ceiling, never the
+   destination volume's actual free space. `EXT-017` now wires it into `ExtractArchiveHandler`
+   (refuses before a byte is written when the declared uncompressed total exceeds free space, no
+   override — THREAT_MODEL.md T3 is explicit that this one never asks). `CRT-014…016` and
+   `EXT-018…019` cover the write-path half of the same risk — disk-full mid-write, access-denied,
+   and a locked source — injected at the one seam (`IFileSystem`) a real OS failure would actually
+   arrive through, since none of the three can be provoked deterministically on a shared build
+   machine. All five leave nothing behind: no partial archive, no orphaned staging file.
+2. **"A fuzz run over ZIP/7Z/TAR/RAR parsing completes with no crash and no unhandled exception"
+   had never been run.** `FUZ-001…003` (`ManagedFormatFuzzTests.cs`) now feed a seeded, deterministic
+   corpus of scattered bit-flips, random byte blocks and truncations — 300 mutations per format,
+   through both `TestAsync` and `ExtractAsync` — into ZIP, TAR and GZIP, the three managed formats
+   that need no native library. Pass criterion is the gate's own wording: a mutation may be refused
+   (`ArchiveOperationException`/`OperationCanceledException`), never anything else. 1,800 mutated
+   parses, zero crashes. 7Z and RAR parse through `7z.dll`, which does not exist on this build
+   machine — recorded as **L34** rather than silently counted as covered by the ZIP/TAR/GZIP result.
+3. **"No path writes to the destination outside the extraction writer" was true, but unenforced.**
+   A scratch probe confirmed it empirically — zero write-oriented `File`/`Directory`/`FileStream`
+   member references anywhere outside `NOBA.Archive.Infrastructure` — and
+   `Nothing_outside_infrastructure_writes_to_the_filesystem_by_path` (Architecture.Tests) now locks
+   it in as a real, currently-passing test across every other assembly including the two the
+   existing blanket `Does_not_touch_the_filesystem_directly` rule has to leave out (the CLI and the
+   native backend both legitimately read via `File.Exists`/`File.ReadAllText`).
+4. **"The redaction test passes for every logging sink" was proving the wrong thing.**
+   `RedactingLoggerProvider` had its own passing unit tests (`RedactionTests.cs`), but neither real
+   composition root — `CliApplication.CreateHostServices` nor `App.xaml.cs`'s `services.AddLogging()`
+   — ever called `AddRedaction`, and no real sink was registered anywhere either, so the gap was
+   silent. `CreateHostServices` now takes an optional `configureLogging` parameter and wraps every
+   provider, including one added through it, before returning — `SEC-024`
+   (`CompositionRootRedactionTests.cs`) drives the real static factory with a fake sink and proves a
+   password never reaches it. `App.xaml.cs` gets the same fix; it is **WinUI-only and cannot be
+   compiled or exercised from this build machine**, so it is reviewed by inspection against the
+   pattern the CLI now has test coverage for, not claimed as tested.
+
+**Also found and fixed, outside this drop's scope but discovered while gathering its evidence: a
+genuine race in DROP 09's `OperationQueue.DisposeAsync`.** Running the full suite repeatedly (the
+same discipline DROP 09 itself used) surfaced
+`Disposing_cancels_both_running_and_still_queued_operations` failing roughly one run in five —
+`SemaphoreSlim.WaitAsync` races a slot becoming available against its cancellation token firing, and
+during shutdown either can win; a queued operation could win that race and run to completion instead
+of being cancelled. `OperationQueue.RunAsync` now checks the shutdown and per-entry cancellation
+tokens directly after acquiring a slot (the derived linked token's own cancellation lagged behind its
+sources by a few scheduler steps, which is why a first fix attempt checking it instead of the sources
+did not hold up under repetition) and releases the slot instead of starting work. Confirmed against
+375+ repeated runs of the specific scenario (the race itself re-triggered in roughly 40% of them) and
+three full-suite runs, zero failures. This changes production code DROP 09 shipped, not DROP 06's own
+scope, so it is called out here rather than folded silently into either drop's narrative.
+
 ### DROP 07 — Archive Intelligence Without AI
 - **Scope:** search by filename and path, extension/type/size/date filters, sorting, multi-selection,
   entry and archive metadata, ratios, CRC, counts, properties; large-archive browsing without
@@ -708,6 +766,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-08-27 | DROP 06 — Drag & Drop Experience | `…-drop-06-drag-drop` | 665 / 6 | — | PASS | not run | `artifacts/test-20260827-064539/` |
 | 2026-08-27 | DROP 08 — Windows Shell Integration | `…-drop-08-windows-shell-integration` | 700 / 6 | — | PASS | not run | `artifacts/test-20260827-111109/` |
 | 2026-10-18 | DROP 09 — Operations Center (concurrency) | `…-drop-09-operations-center-concurrency` | 875 / 6 | — | PASS | not run | `artifacts/test-20261018-202535/` |
+| 2026-10-18 | DROP 06 — Security (fuzzing, redaction, disk exhaustion) | `…-drop-06-security-fuzzing-and-redaction` | 888 / 6 | — | PASS | not run | `artifacts/test-20261018-215418/` |
 
 ---
 

@@ -63,6 +63,7 @@ public sealed class ExtractArchiveHandler
     private readonly IExtractionWriter _writer;
     private readonly IResourceGuard _guard;
     private readonly IPasswordProvider _passwords;
+    private readonly DiskSpaceEstimator _diskSpace;
 
     public ExtractArchiveHandler(
         IArchiveProviderRegistry registry,
@@ -70,7 +71,8 @@ public sealed class ExtractArchiveHandler
         IFileSystem fileSystem,
         IExtractionWriter writer,
         IResourceGuard guard,
-        IPasswordProvider passwords)
+        IPasswordProvider passwords,
+        DiskSpaceEstimator diskSpace)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(detector);
@@ -78,6 +80,7 @@ public sealed class ExtractArchiveHandler
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(guard);
         ArgumentNullException.ThrowIfNull(passwords);
+        ArgumentNullException.ThrowIfNull(diskSpace);
 
         _registry = registry;
         _detector = detector;
@@ -85,6 +88,7 @@ public sealed class ExtractArchiveHandler
         _writer = writer;
         _guard = guard;
         _passwords = passwords;
+        _diskSpace = diskSpace;
     }
 
     public async Task<ExtractOutcome> HandleAsync(
@@ -138,6 +142,30 @@ public sealed class ExtractArchiveHandler
             session.Statistics.EntryCount,
             session.Statistics.TotalCompressedSize,
             session.Statistics.TotalUncompressedSize));
+
+        // THREAT_MODEL.md T3: "total expanded size vs free disk" is its own row, separate from the
+        // ratio/count/memory heuristics above — because running out of physical disk is not a heuristic
+        // that a legitimate huge archive can trip by accident. There is no number of free bytes an
+        // archive can talk its way past, so unlike the guards above this one is never offered an
+        // override: it only ever refuses before a byte is written, never pauses to ask. Skipped when the
+        // archive reports no uncompressed total at all (declared sizes are attacker-controlled, so an
+        // unknown total is left alone rather than guessed at).
+        if (session.Statistics.TotalUncompressedSize.Bytes > 0)
+        {
+            var estimate = _diskSpace.Estimate(
+                options.DestinationRoot,
+                session.Statistics.TotalUncompressedSize,
+                totalIsTrustworthy: false);
+
+            if (!estimate.IsSufficient)
+            {
+                throw new ArchiveOperationException(ArchiveError.Create(
+                    ArchiveErrorCode.DiskFull,
+                    $"The archive declares {estimate.Required} is needed to extract, but only " +
+                    $"{estimate.Available} is free on the destination volume (short by {estimate.Shortfall}).",
+                    options.DestinationRoot));
+            }
+        }
 
         var clock = Stopwatch.StartNew();
         aggregator.Start(clock.Elapsed);
