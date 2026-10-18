@@ -206,9 +206,19 @@ Losing MOTW on extraction is treated as a **security defect**, not a feature gap
 ### T9 — Temp-file leakage (A3) · *Information disclosure*
 
 Per-operation directory under `%LOCALAPPDATA%`, ACL'd to the current user, never in `%TEMP%` shared
-space, deterministic cleanup, startup sweeper for orphans, and — most importantly — **preview and
+space, deterministic cleanup, a sweeper for orphans, and — most importantly — **preview and
 "open from archive" do not extract more than the single requested entry**. Encrypted archives never leave
 decrypted material in temp after the viewer closes. **Tests:** `SEC-020`, `SEC-021`.
+
+**DROP 12 correction:** the sweeper (`ITempWorkspaceFactory.SweepOrphans()`) existed and was tested in
+isolation, but nothing called it from a real startup path — this paragraph described that as live
+before it was true. The CLI now calls it on every invocation; the WinUI app does not yet
+(`PRODUCT_PLAN.md` DROP 12 Remaining). The create/update staging file beside the destination
+(`ArchivePublisher`) had the same gap — reclaimed only on a thrown exception, never on a killed
+process — and now gets the identical PID-stamped-name-plus-sweep treatment. Extraction's own per-entry
+temp files do not yet (L39, deliberately deferred: that file is explicitly in scope for several of this
+document's own CVE mitigations, and changing it without a Windows run to verify was judged the wrong
+trade this drop).
 
 ### T10 — Destructive-operation mistakes (A4) · *Tampering by accident*
 

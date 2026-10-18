@@ -143,7 +143,15 @@ public sealed class CliApplication
             services.AddSingleton<IPasswordProvider>(new StaticPasswordProvider(password));
         }
 
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+
+        // DROP 12: "on startup, a sweeper removes directories whose owning process no longer exists"
+        // (ARCHITECTURE.md §8.4) was documented and unit-tested in isolation, but never actually called
+        // from either real composition root. The CLI's "startup" is every invocation — a process-per-
+        // command model where this costs one near-empty directory listing, dwarfed by process start.
+        provider.GetRequiredService<ITempWorkspaceFactory>().SweepOrphans();
+
+        return provider;
     }
 
     private static ExitCode Help(CliOutput io)

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using NOBA.Archive.Core.Abstractions;
 using NOBA.Archive.Core.Errors;
 
@@ -21,9 +22,22 @@ namespace NOBA.Archive.Infrastructure.FileSystem;
 /// <c>System.IO.File</c> from NOBA.Archive.Formats outright, so the rule is machine-checked instead of
 /// remembered.
 /// </para>
+/// <para>
+/// <b>DROP 12.</b> "An interrupted create leaves the staging file" was true for a thrown exception —
+/// <see cref="ArchivePublication.DisposeAsync"/> cleans it up — but never for a killed process, which
+/// skips disposal entirely. The staging name now carries the PID that created it
+/// (<c>.noba-{pid}-{guid}.tmp</c>), and <see cref="BeginAsync"/> sweeps same-directory siblings whose
+/// PID belongs to a process that no longer exists before opening its own. This is the same liveness
+/// check <see cref="TempWorkspaceFactory.SweepOrphans"/> already uses for workspace directories
+/// (<see cref="ProcessLiveness"/>), now covering the one staging file that mechanism never reached.
+/// </para>
 /// </remarks>
 public sealed class ArchivePublisher : IArchivePublisher
 {
+    private static readonly Regex StagingFileName = new(
+        @"^\.noba-(?<pid>\d+)-[0-9a-fA-F]{32}\.tmp$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly IFileSystem _fileSystem;
 
     public ArchivePublisher(IFileSystem fileSystem)
@@ -55,15 +69,57 @@ public sealed class ArchivePublisher : IArchivePublisher
         if (!string.IsNullOrEmpty(directory))
         {
             _fileSystem.CreateDirectory(directory);
+            SweepOrphanedStagingFiles(directory, cancellationToken);
         }
 
         var staging = Path.Combine(
             directory ?? ".",
-            string.Create(CultureInfo.InvariantCulture, $".noba-{Guid.NewGuid():N}.tmp"));
+            string.Create(CultureInfo.InvariantCulture, $".noba-{Environment.ProcessId}-{Guid.NewGuid():N}.tmp"));
 
         var stream = _fileSystem.CreateNew(staging);
         return ValueTask.FromResult<IArchivePublication>(
             new ArchivePublication(_fileSystem, stream, staging, full, overwrite));
+    }
+
+    /// <summary>
+    /// Best-effort: a staging file this sweep fails to remove is untidy, not unsafe, so nothing here
+    /// is allowed to fail the real operation that is about to start.
+    /// </summary>
+    private void SweepOrphanedStagingFiles(string directory, CancellationToken cancellationToken)
+    {
+        if (!_fileSystem.DirectoryExists(directory))
+        {
+            return;
+        }
+
+        foreach (var entry in _fileSystem.EnumerateEntries(directory, recursive: false, cancellationToken))
+        {
+            if (entry.IsDirectory)
+            {
+                continue;
+            }
+
+            var match = StagingFileName.Match(entry.Name);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            if (!int.TryParse(match.Groups["pid"].Value, CultureInfo.InvariantCulture, out var pid) ||
+                ProcessLiveness.IsAlive(pid))
+            {
+                continue;
+            }
+
+            try
+            {
+                _fileSystem.DeleteFile(entry.FullPath);
+            }
+            catch (ArchiveOperationException)
+            {
+                // Someone else may be touching it right now; leave it for the next sweep.
+            }
+        }
     }
 
     private sealed class ArchivePublication : IArchivePublication

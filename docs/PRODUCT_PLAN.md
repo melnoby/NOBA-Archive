@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-03-archive-management-cli`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-12-recovery-and-failure-safety`
 
 ---
 
@@ -220,11 +220,11 @@ rather than transcribed.
 | L10 | Creation offers no password field. The engine encrypts (7ZC-007/008) and `CreateOptionsViewModel` gates the option correctly, but the Create screen has no way to type a password, so encryption is unreachable from the UI | DROP 06 |
 | L11 | Creation offers no split-volume control. No provider advertises `SplitVolumes`, so there is nothing honest to offer yet | DROP 05 |
 | L12 | The Create screen has no drag-and-drop and no "compress here" entry point; inputs are added through pickers only | DROP 08, 10 |
-| L13 | Disk-full, permission-denied and locked-source behaviour during creation is **not covered by an automated test**. All three need a real filesystem state the build machine cannot produce, and a fake `IFileSystem` would prove only that the fake throws | DROP 12 |
+| ~~L13~~ | ~~Disk-full, permission-denied and locked-source behaviour during creation is not covered by an automated test.~~ **Stale — closed by DROP 06, never struck here.** `CreationFailureInjectionTests.cs` (CRT-014/015/016, commit `5cd8bde`) added exactly this: a real `IFileSystem` wrapping the real filesystem, faulting at the one call site a genuine disk-full/access-denied/locked-source error would hit, rather than a fake that "proves only that the fake throws." DROP 12 found this row still open and fixed the paperwork, not the code | Closed |
 | L14 | Creation **creates the destination folder** if it does not exist. Deliberate — a typed folder name is an instruction — but it means "invalid destination" only covers paths that cannot exist at all (CRT-010) | — |
 | L15 | **Cancellation stopping physical disk writes is still unproven on Windows.** OPX-006/016 watch the destination on Linux and OPQ-022/023 prove the state machine, but nobody has watched an NTFS folder stop changing after Cancel. `scripts/watch-destination.ps1` exists for exactly this and has not been run against an extraction | manual gate G/H |
 | L16 | The extract dialog offers no "Extract here" shortcut and no remembered destination; every extraction names a folder | DROP 08, 10 |
-| L17 | Disk-full and permission-denied **during extraction** have no automated test, for the same reason creation's do not: the build machine cannot produce the filesystem state, and a fake `IFileSystem` would prove only that the fake throws | DROP 12 |
+| ~~L17~~ | ~~Disk-full and permission-denied during extraction have no automated test.~~ **Stale — closed by DROP 06, never struck here.** `ExtractionFailureInjectionTests.cs` (EXT-018/019) plus the pre-flight check in `ExtractionDiskSpaceTests.cs` (EXT-017) already cover this, same mechanism as L13 | Closed |
 | L19 | **BZIP2 and XZ are detected and cannot be opened.** No BCL codec exists and no third-party dependency has been approved; extending the native interop would make the capability depend on which handlers the installed `7z.dll` carries | next format drop |
 | L20 | **`.tgz`, `.tbz2`, `.tbz`, `.txz` do not open.** They are a TAR inside a compressor and need a layered session; the extensions are deliberately no longer claimed by the plain compressors, which is a behaviour change from before DROP 05 | next format drop |
 | L21 | **GZIP cannot store a non-Latin-1 file name.** RFC 1952 §2.3.1 defines the field as ISO-8859-1, so an Arabic or Japanese name is not written and the reader falls back to the archive's own name minus `.gz`. Content always round trips exactly; only the name is lost, and only for names the format cannot represent | — |
@@ -246,6 +246,8 @@ rather than transcribed.
 | ~~L36~~ | ~~"Deterministic and fast search" is proven deterministic, not measured fast.~~ **Closed in DROP 11.** `docs/PERFORMANCE.md` now measures `search` against `list` at 200/2,000/20,000 entries (`scripts/benchmark-linux.sh`); they cost about the same at every scale, confirming `SearchArchiveHandler` adds no second pass. `PRF-003` turns the shape ("grows with entries scanned, not quadratically") into a repeatable allocation-ratio regression test | Closed |
 | L37 | **The WinUI archive tree still loads every entry into memory at open time, search or not.** `SearchArchiveHandler` honors "large-archive browsing without loading everything into the UI" at the Application-layer contract (streams matches; buffers only the matched subset when sorted), but `BrowseViewModel.OpenAsync` → `ArchiveNode.BuildTree` was not touched this drop and still builds the whole tree up front, and `Refresh()`'s search mode still flattens that whole tree before filtering it. Restructuring the WinUI screen itself around the new streaming contract is a larger UI-architecture change, out of scope for a drop this session can verify only on Linux | DROP 10, 11 |
 | L38 | **UI responsiveness and startup-to-interactive are unmeasured.** DROP 11 measured CLI-surfaced operations (`create`/`list`/`search`/`extract`/`test`) and process memory on Linux; the WinUI desktop app (`NOBA.Archive.App`) cannot be built, started, or driven from this session, so first-paint latency, tree-population responsiveness on a large archive, and startup-to-interactive time have no measurement anywhere — only the non-UI engine work the CLI exercises is covered | a Windows UI run |
+| L39 | **`ExtractionWriter`'s per-entry temp files have no orphan sweep.** DROP 12 gave `ArchivePublisher`'s staging file a PID-stamped name and a sweep at `BeginAsync`, closing that half of "a killed process leaves a `.noba-*.tmp` behind forever." The per-entry temp file `ExtractionWriter.BeginEntryAsync` opens in each destination directory has the identical gap and was deliberately left alone this drop: that file is explicitly security-critical (ADR-0005, the 2025 archiver CVE mitigations, the TOCTOU handle re-verification) and this session judged editing it without a Windows run to verify the result was the wrong trade against a secondary cleanup concern | a later drop |
+| L40 | **No real process-kill test harness exists anywhere.** Every "crash recovery" test in this codebase, including DROP 12's new `ArchivePublisherTests`, proves the *mechanism* (a stale file stamped with a dead PID gets swept) by constructing that artifact directly, never by actually starting `noba-ar`, killing it mid-operation, and inspecting what is left. The design is sound and the simulated case is deterministic and real evidence, but an out-of-process kill harness would be a different, stronger kind of proof that nothing in this codebase has | a later drop |
 
 ---
 
@@ -302,7 +304,7 @@ the running app. A SKIP it prints is not a pass.
 | 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
 | 11 | Performance and Scale | 05, 07 | must measure, not guess | `LINUX` | WinUI build + a Windows run; R17/R18 (native 7Z backend, solid-archive scaling) still need `scripts\benchmark.ps1` on real Windows hardware; UI responsiveness/startup-to-interactive unverified from this session (L38); nothing measured above 20,000 entries |
-| 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `TODO` | — |
+| 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `LINUX` | WinUI build + a Windows run; no real process-kill harness (L40); `ExtractionWriter`'s per-entry temps still have no orphan sweep, deliberately deferred (L39); WinUI startup never calls `SweepOrphans()` (CLI's does, as of this drop) |
 | 13 | Release Security Audit | 06, 12 | hostile review of everything | `TODO` | — |
 | 14 | Product Polish | 10 | must not redesign | `TODO` | — |
 | 15 | Release Candidate | all | evidence, not optimism | `TODO` | — |
@@ -843,6 +845,57 @@ evidence, for the managed providers; it is unverified, honestly, for the native 
   not complete**; never silently discards a failure; user-readable messages with developer detail
   retained; recovery tests.
 
+#### What this drop built
+
+Research first: most of this scope turned out to already be closed by DROP 06 (commit `5cd8bde`),
+with the paperwork never updated to say so — the same class of gap DROP 03 and DROP 11 each found in
+their own research this engagement. Confirmed directly rather than assumed:
+
+- **Already closed, now correctly marked (L13, L17 struck through):** disk-full, access-denied and
+  locked-source for Create (CRT-014/015/016); disk-full and access-denied for Extract (EXT-017/018/019);
+  disk-full for Manage's rewrite (MAN-007, added with `ManageArchiveHandler` itself); cancellation
+  mid-flight for Create (INT-013) and thoroughly for Extract (OPX-006/010/014/016, OPQ-022/023); the
+  atomic-publish structure for both Create (`IArchivePublisher`) and Extract (`ExtractionWriter`'s
+  per-entry temp-then-move); password/corrupt-archive/invalid-path error codes and test coverage.
+- **Genuinely missing, and built this drop:**
+  - **`ArchivePublisher` now survives a killed process, not only a thrown exception.** The staging
+    file's name carries the PID that created it (`.noba-{pid}-{guid}.tmp`); `BeginAsync` sweeps
+    same-directory siblings whose PID belongs to a process that no longer exists before opening its
+    own, using the identical liveness check `TempWorkspaceFactory.SweepOrphans()` already used for
+    workspace directories — now extracted into one shared `ProcessLiveness` helper instead of two
+    copies. New: `ArchivePublisherTests.cs` (4 facts) proves a dead-PID staging file is swept, a
+    live-PID one survives, an unrelated file is never touched, and the ordinary publish path still
+    works and leaves nothing behind.
+  - **`ITempWorkspaceFactory.SweepOrphans()` is now actually called.** It existed, was unit-tested in
+    isolation, and was described by both `ARCHITECTURE.md` and `THREAT_MODEL.md` as running "on
+    startup" — but nothing in `App`, `Cli`, or `Engine` ever called it. `CliApplication.CreateHostServices`
+    now does, which is the CLI's real equivalent of "on startup" under its one-command-per-process
+    model. The WinUI side of the same gap remains — see L39/§3's Remaining column; this session cannot
+    build or verify `NOBA.Archive.App`.
+  - **`ManageArchiveHandler` had zero cancellation, access-denied, or locked-source coverage** despite
+    the propagation code already being structurally present. New:
+    `ManageArchiveFailureInjectionTests.cs` (MAN-011/012/013) — an unopenable write and a locked source
+    archive both fail cleanly with the original archive byte-for-byte untouched, and cancelling
+    mid-rewrite (mirroring INT-013's technique for Create) leaves the same guarantee.
+- **Looked at, decided, and documented rather than redesigned:**
+  - `ArchiveError` has exactly one text field (`TechnicalDetail`), shown verbatim in both the CLI and
+    WinUI today, despite its own docstring implying a user-message/developer-detail split exists. Every
+    sampled message is already written in plain, user-safe language ("There is not enough space on the
+    destination volume.", not a stack trace), so this drop treats that as the real design — one
+    message serving both roles by convention — and corrects the docstring rather than adding a second
+    field across every call site for a split that was never actually missing in practice.
+  - `IFileSystem.ReplaceFile` (backup-on-overwrite) is fully implemented and fully unused — nothing in
+    `ConflictPolicy`/`ExtractionOptions`/`CreateRequest` can ever request it. `ARCHITECTURE.md` and
+    `THREAT_MODEL.md` both described it as live behaviour; corrected to say it is implemented but
+    unused, rather than inventing a backup-on-overwrite feature nobody asked for just to make the docs
+    true.
+  - A genuine process kill was not reproduced by an out-of-process harness — recorded honestly as L40
+    rather than claimed as tested. `ExtractionWriter`'s per-entry temp files keep the same orphan gap
+    `ArchivePublisher` just closed, deliberately deferred (L39): that file is explicitly security-
+    critical and editing it without a Windows run to verify the result was judged the wrong trade.
+- Correctness, security (beyond the fixes above), cancellation's existing guarantees, pause, and
+  architecture were otherwise unchanged.
+
 ### DROP 13 — Release Security Audit
 - **Scope:** hostile review of the whole product against the DROP 06 surface plus queue, cancellation,
   pause, shell integration, races and boundary violations.
@@ -887,6 +940,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-10-18 | DROP 07 — Archive Intelligence (search, no AI) | `…-drop-07-archive-intelligence-search` | 904 / 6 | — | PASS | not run | `artifacts/test-20261018-224305/` |
 | 2026-10-18 | DROP 11 — Performance and Scale | `…-drop-11-performance-and-scale` | 908 / 6 | — | PASS | not run | `artifacts/test-20261018-232238/` |
 | 2026-10-18 | DROP 03 — Archive Management (CLI surface + doc reconciliation) | `…-drop-03-archive-management-cli` | 915 / 6 | — | PASS | not run | `artifacts/test-20261018-235106/` |
+| 2026-10-18 | DROP 12 — Recovery and Failure Safety | `…-drop-12-recovery-and-failure-safety` | 922 / 6 | — | PASS | not run | `artifacts/test-20261019-002711/` |
 
 ---
 

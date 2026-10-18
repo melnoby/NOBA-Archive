@@ -440,17 +440,37 @@ points, not stretch goals.
 ### 8.4 Temp workspace
 
 `ITempWorkspace` allocates `%LOCALAPPDATA%\NOBA Archive\tmp\<OperationId>\` with an ACL limited to the
-current user, tracks it in a manifest, and deletes it deterministically. On startup, a sweeper removes
-directories whose owning process no longer exists. Extraction writes to a temp file **in the destination
-directory** and publishes it on success, so a cancelled or crashed extraction never leaves a half-written
-file under the real name. Publishing is:
+current user, stamps it with the owning process's PID, and deletes it deterministically.
+`ITempWorkspaceFactory.SweepOrphans()` removes directories whose owning process no longer exists — real
+and unit-tested (`TempWorkspaceTests.cs`), but **this is a DROP 12 correction**: for most of this
+project's life nothing ever called it from a real startup path, despite this section claiming "on
+startup" as if it did. The CLI's `CreateHostServices` now calls it on every invocation (its equivalent
+of "on startup" under a one-command-per-process model); the WinUI app does not yet, which is an open
+gap, not a claim — see `PRODUCT_PLAN.md`'s DROP 12 Remaining column.
+
+`ArchivePublisher` (create/update's staging file beside the destination) gained the identical sweep in
+the same drop: its staging file name now carries the PID that created it
+(`.noba-{pid}-{guid}.tmp`), and `BeginAsync` removes a same-directory sibling whose PID is dead before
+opening its own, via the same liveness check (`ProcessLiveness`, shared with the sweeper above rather
+than duplicated). Before this, only a thrown-and-caught exception reclaimed a staging file — a killed
+process skipped that cleanup entirely and left it forever.
+
+Extraction writes to a temp file **in the destination directory** and publishes it on success, so a
+cancelled or crashed extraction never leaves a half-written file under the real name. Publishing is:
 
 - **new file** → `File.Move(temp, final, overwrite: false)` (atomic on the same volume);
-- **overwrite policy** → `File.Replace(temp, final, backup)` when a backup is wanted, otherwise
-  `File.Move(temp, final, overwrite: true)`.
+- **overwrite** → `File.Move(temp, final, overwrite: true)`.
 
-`File.Replace` is *not* the general case: it throws when the destination does not exist, which is
-precisely the normal extraction path.
+`IFileSystem.ReplaceFile` (`File.Replace`, with a backup path) is implemented but **not currently
+called from anywhere** — no option on `ConflictPolicy`/`ExtractionOptions`/`CreateRequest` can request
+a kept backup on overwrite. This section previously described that option as live; it is dead code
+today, recorded honestly rather than left to look like a shipped feature.
+
+Extraction's own per-entry temp files (`ExtractionWriter`) do **not** yet have the PID-sweep treatment
+`ArchivePublisher` just received — a known, deliberately deferred gap (`PRODUCT_PLAN.md` L39), not an
+oversight: that file is explicitly security-critical (§6's CVE mitigations, the TOCTOU handle
+re-verification below), and changing it without a Windows run to verify the result was judged the wrong
+trade this drop.
 
 ---
 

@@ -1,9 +1,18 @@
 namespace NOBA.Archive.Core.Errors;
 
 /// <summary>
-/// The closed set of failure reasons. Providers translate every backend exception into one of these;
-/// the UI maps the code to a localised message and shows the technical detail only behind "Details".
+/// The closed set of failure reasons. Providers translate every backend exception into one of these.
 /// </summary>
+/// <remarks>
+/// <b>DROP 12 correction:</b> this used to claim the UI maps the code to a localised message and shows
+/// <see cref="ArchiveError.TechnicalDetail"/> only behind a "Details" panel. No such two-tier mapping
+/// exists, in the CLI or in WinUI — both show <c>TechnicalDetail</c> directly as the only message there
+/// is (`CliApplication.Fail`, `CreateViewModel`'s failure text). Checked rather than assumed: every
+/// <c>TechnicalDetail</c> string in this codebase is already written in plain language ("There is not
+/// enough space on the destination volume.", not a stack trace), so this is documented as the real
+/// design — one message doing both jobs by convention — rather than treated as a gap needing a second
+/// field added across every call site for a split that was never actually missing in practice.
+/// </remarks>
 public enum ArchiveErrorCode
 {
     None = 0,
@@ -30,7 +39,11 @@ public sealed record ArchiveError
 {
     public required ArchiveErrorCode Code { get; init; }
 
-    /// <summary>Diagnostic text for the Details panel and the log. Never shown as the headline message.</summary>
+    /// <summary>
+    /// The message — shown to the user as-is in both the CLI and WinUI, and also what goes to the log.
+    /// Write it in plain language for that reason; there is no second, more-technical field it hides
+    /// behind.
+    /// </summary>
     public required string TechnicalDetail { get; init; }
 
     public string? Path { get; init; }

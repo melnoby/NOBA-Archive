@@ -89,23 +89,7 @@ public sealed class TempWorkspaceFactory : ITempWorkspaceFactory
         try
         {
             var text = File.ReadAllText(ownerFile).Trim();
-            if (!int.TryParse(text, CultureInfo.InvariantCulture, out var pid))
-            {
-                return false;
-            }
-
-            if (pid == Environment.ProcessId)
-            {
-                return true;
-            }
-
-            using var process = System.Diagnostics.Process.GetProcessById(pid);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            // No such process: the workspace is an orphan.
-            return false;
+            return int.TryParse(text, CultureInfo.InvariantCulture, out var pid) && ProcessLiveness.IsAlive(pid);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

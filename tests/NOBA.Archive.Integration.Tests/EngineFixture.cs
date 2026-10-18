@@ -166,6 +166,7 @@ internal sealed class EngineFixture : IAsyncDisposable
         IReadOnlyList<EntryRename>? rename = null,
         IReadOnlyList<string>? add = null,
         ArchiveFormat? forceFormat = null,
+        IProgress<OperationProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var id = Get<OperationIdFactory>().Next(OperationType.Add);
@@ -180,7 +181,7 @@ internal sealed class EngineFixture : IAsyncDisposable
                 SourcesToAdd = add ?? [],
             },
             id,
-            null,
+            progress,
             null,
             cancellationToken));
     }
