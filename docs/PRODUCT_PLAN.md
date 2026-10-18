@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-08-27-drop-08-windows-shell-integration`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-09-operations-center-concurrency`
 
 ---
 
@@ -240,6 +240,7 @@ rather than transcribed.
 | L30 | No single instance. Each shell action starts a new process; `ShellCommandLine.Parse` is the seam a future activation redirection would feed | a later drop |
 | L31 | Batch archive actions are absent. Open, Test and both Extracts require exactly one archive | a later drop |
 | L32 | `Compress to` does not avoid a name collision. The engine refuses an occupied target through the existing overwrite contract rather than the menu inventing "name (2).7z" | by design |
+| L33 | **Concurrent operations against the native 7Z/RAR backend are unverified.** DROP 09 proved `OperationQueue` and the real `CreateArchiveHandler`/`ExtractArchiveHandler` safe under genuine concurrency for the managed ZIP provider (OPQ-025…027, OPX-017…019) and the `EngineWorkspace` outcome-parking pattern in isolation — but `7z.dll` is not present on the Linux build machine, so whether two simultaneous `IInArchive`/`IOutArchive` handler objects from `SevenZipLibrary.CreateObject` are safe has no automated coverage anywhere, and `EngineWorkspace` itself (`NOBA.Archive.App`, Windows-only) has never been exercised under concurrency either. The shipped default stays `MaxConcurrentOperations = 1` partly for this reason | a Windows concurrency gate |
 
 ---
 
@@ -293,7 +294,7 @@ the running app. A SKIP it prints is not a pass.
 | 06 | Security | 04, 05 | adversarial corpus needs building | `TODO` | — |
 | 07 | Archive Intelligence (no AI) | 05 | large-archive listing performance | `TODO` | — |
 | 08 | Shell Integration | 02, 04, packaging | needs a real installer; Windows-only verification | `TODO` | — |
-| 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `TODO` | — |
+| 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
 | 11 | Performance and Scale | 05, 07 | must measure, not guess | `TODO` | — |
 | 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `TODO` | — |
@@ -590,6 +591,60 @@ is derived, not written down, so it shrinks honestly on a machine missing the na
 - **Exit:** the engine owns state and the UI never becomes the source of truth; stress tests for
   multiple operations.
 
+#### What this drop found, rather than built
+
+Most of the field list in Scope was already true when this drop opened: `OperationSnapshot` /
+`OperationProgress` already carry type, description (the archive), destination, state, progress,
+items/bytes done and total, instant and average speed, ETA, start/finish timestamps and the derived
+duration, and error — none of it invented for this drop, all of it read from `IOperationQueue.cs` and
+`OperationProgress.cs` as they already stood. `OperationsViewModel` (Presentation) already tracks more
+than one operation independently and correctly — `OPS-023` proved that before this drop touched
+anything. "History" is the queue's own entry dictionary, already kept until `RemoveFinished` is called.
+So the open question this drop actually had to answer was the one named in this table's own **Primary
+risk** column: concurrency, and specifically whether `OperationQueue` — built around a `SemaphoreSlim`
+sized to `MaxConcurrentOperations` since DROP 01 — can truly be given more than one slot, or whether
+`MaxConcurrentOperations = 1` is load-bearing and not just the shipped default.
+
+**Answer, with evidence.** The scheduler itself tolerates any slot count: `OPQ-025` (Application.Tests)
+proves three fake operations genuinely overlap — not merely "never exceed the cap" (`Honours_the_
+concurrency_limit` already covered that) but actually *reach* three concurrent, by making every one of
+them wait for the other two to arrive before any may proceed, so a queue that quietly serialised them
+would hang the test rather than pass it by accident. `OPQ-026` proves one operation failing while two
+siblings are genuinely mid-flight does not touch them — each ends in exactly the state its own work
+earned. `OPQ-027` proves `DisposeAsync` cancels both a running operation and one that never reached the
+slot gate, and returns rather than hanging. These three joined `OPQ-019…024` in
+`OperationQueueTests.cs`; Linux run: 38/38.
+
+That is the scheduler against fake delegates. Whether the *real* handlers — resolved once as singletons
+by `AddNobaArchiveEngine`, `CreateArchiveHandler`, `ExtractArchiveHandler`, and the `IArchiveProviderRegistry`
+/ `IFormatDetector` underneath them — tolerate two callers at the same moment had never been asked.
+`OPX-017…019` (`OperationLifecycleTests.cs`, Integration.Tests) ask it: two real creations, and two real
+extractions, each pair enqueued on the real `IOperationQueue` with `MaxConcurrentOperations = 2` and
+released from the same rendezvous gate so neither can start before the other has arrived, each produce
+correct, non-cross-contaminated output; and a real extraction failing on a missing archive, released
+from the same gate as a real sibling extraction that is genuinely running at that moment, leaves the
+sibling to finish correctly. All three are against the managed ZIP provider, for the reason
+`CreationMatrixTests`/`ExtractionMatrixTests` already give: it needs no native library, so these run
+unconditionally. Linux run (whole Integration suite): 183/183, 6 skipped.
+
+**What is still not proven, and is not claimed to be.** `EngineWorkspace` (`NOBA.Archive.App`) is the one
+place that actually parks concurrent outcomes by operation id (DEBT-06's `_outcomes` / `_testResults` /
+`_created` / `_managed`), and it cannot be compiled or referenced from a test on this build machine —
+the same WinUI restriction DEBT-10 already names. `OPX-017…019` prove the identical pattern — a
+`ConcurrentDictionary<string, TOutcome>` written from concurrently running queue-driven work and read
+once by the caller that awaited it — is safe; they do not and cannot exercise `EngineWorkspace` itself.
+And the native backend's own thread safety under two simultaneous `IInArchive`/`IOutArchive` handler
+objects (`SevenZipLibrary.CreateObject`, `src/NOBA.Archive.Backends.SevenZip`) has no automated coverage
+anywhere in this repository and cannot get any from Linux, where `7z.dll` does not exist to load. Both
+are recorded as **L33** rather than assumed either way.
+
+**Decision: the shipped default stays `MaxConcurrentOperations = 1`.** Nothing above argues for raising
+it — the comment that has stood on `OperationQueueOptions` since DROP 01 (compression already saturates
+every core) is unaffected by any of this, and the native-backend half of L33 is a real reason not to
+turn concurrency on by default before a Windows run exists to check it. What changed is that "if the
+architecture allows" now has an answer for the half of the architecture Linux can test: it does, with
+evidence, for the managed providers; it is unverified, honestly, for the native one.
+
 ### DROP 10 — Windows UX
 - **Scope:** drag files/folders/archives in, contextual actions, keyboard shortcuts, copy/paste,
   confirmations, dialogs, progress, notifications, empty states, errors, responsiveness; Settings
@@ -652,6 +707,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-08-26 | DROP 05 — Format & Capability Expansion | `…-drop-05-format-capability-expansion` | 642 / 6 | — | PASS | — | `artifacts/test-20260826-205122/` |
 | 2026-08-27 | DROP 06 — Drag & Drop Experience | `…-drop-06-drag-drop` | 665 / 6 | — | PASS | not run | `artifacts/test-20260827-064539/` |
 | 2026-08-27 | DROP 08 — Windows Shell Integration | `…-drop-08-windows-shell-integration` | 700 / 6 | — | PASS | not run | `artifacts/test-20260827-111109/` |
+| 2026-10-18 | DROP 09 — Operations Center (concurrency) | `…-drop-09-operations-center-concurrency` | 875 / 6 | — | PASS | not run | `artifacts/test-20261018-202535/` |
 
 ---
 

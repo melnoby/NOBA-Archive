@@ -32,7 +32,8 @@ internal sealed class EngineFixture : IAsyncDisposable
     public EngineFixture(
         string? password,
         ConflictPolicy conflictPolicy = ConflictPolicy.Fail,
-        IFileSystem? fileSystemOverride = null)
+        IFileSystem? fileSystemOverride = null,
+        int maxConcurrentOperations = 1)
     {
         var services = new ServiceCollection();
         services.AddLogging(static b => b.SetMinimumLevel(LogLevel.Critical));
@@ -40,6 +41,11 @@ internal sealed class EngineFixture : IAsyncDisposable
         {
             options.Headless = true;
             options.DefaultConflictPolicy = conflictPolicy;
+
+            // DROP 09: only the concurrency tests pass more than one — every other fixture keeps the
+            // shipped default (ARCHIVE_PLAN.md's "compression already saturates every core"), so this
+            // parameter cannot change what every other integration test is actually proving.
+            options.MaxConcurrentOperations = maxConcurrentOperations;
         });
 
         if (password is not null)

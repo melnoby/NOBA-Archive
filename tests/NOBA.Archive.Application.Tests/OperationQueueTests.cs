@@ -499,4 +499,143 @@ public sealed class OperationQueueTests
         gate.SetResult();
         await queue.WaitForCompletionAsync(id, CancellationToken.None);
     }
+
+    /// <summary>
+    /// OPQ-025: DROP 09 — more than one slot genuinely lets more than one operation run at once.
+    /// </summary>
+    /// <remarks>
+    /// <c>Honours_the_concurrency_limit</c> above proves the cap is never exceeded; it does not prove
+    /// the cap is ever <em>reached</em> — a queue that quietly serialised everything regardless of
+    /// <see cref="OperationQueueOptions.MaxConcurrentOperations"/> would pass that test too. Here every
+    /// one of three operations must observe the other two having already arrived before any of them is
+    /// allowed to finish, so a peak below three is not a timing accident this test tolerates — it is a
+    /// hang, because nothing releases the gate until all three have incremented it.
+    /// </remarks>
+    [Fact]
+    public async Task Multiple_slots_let_operations_genuinely_overlap()
+    {
+        await using var queue = NewQueue(concurrency: 3);
+        var concurrent = 0;
+        var peak = 0;
+        var arrived = 0;
+        var allArrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var ids = new List<Core.Primitives.OperationId>();
+        for (var i = 0; i < 3; i++)
+        {
+            ids.Add(queue.Enqueue(new OperationRequest(OperationType.Test, "concurrent", async (_, ct) =>
+            {
+                var now = Interlocked.Increment(ref concurrent);
+                Interlocked.Exchange(ref peak, Math.Max(Volatile.Read(ref peak), now));
+                if (Interlocked.Increment(ref arrived) == 3)
+                {
+                    allArrived.TrySetResult();
+                }
+
+                await allArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+                Interlocked.Decrement(ref concurrent);
+            })));
+        }
+
+        foreach (var id in ids)
+        {
+            await queue.WaitForCompletionAsync(id, TestContext.Token);
+        }
+
+        Assert.Equal(3, peak);
+    }
+
+    /// <summary>
+    /// OPQ-026: DROP 09 — one operation failing must not disturb its concurrently running siblings.
+    /// </summary>
+    /// <remarks>
+    /// The three share a slot pool and are made to overlap before the failing one throws, so this is not
+    /// "a failure after the others finished" — the siblings are still mid-flight, holding their own
+    /// cancellation source and pause gate, when the failure is recorded. Each must still reach exactly
+    /// the state its own work earns: the queue's per-entry isolation (DEBT-06's dictionaries, each
+    /// keyed by id) must hold under a real concurrent failure, not only in the single-operation case.
+    /// </remarks>
+    [Fact]
+    public async Task A_failing_operation_does_not_disturb_concurrent_siblings()
+    {
+        await using var queue = NewQueue(concurrency: 3);
+        var arrived = 0;
+        var allArrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async Task Arrive(CancellationToken ct)
+        {
+            if (Interlocked.Increment(ref arrived) == 3)
+            {
+                allArrived.TrySetResult();
+            }
+
+            await allArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        }
+
+        var failing = queue.Enqueue(new OperationRequest(OperationType.Extract, "bad.7z", async (_, ct) =>
+        {
+            await Arrive(ct);
+            throw new ArchiveOperationException(
+                ArchiveError.Create(ArchiveErrorCode.CorruptData, "Central directory checksum mismatch"));
+        }));
+        var siblingA = queue.Enqueue(new OperationRequest(OperationType.Extract, "a.7z", async (_, ct) =>
+        {
+            await Arrive(ct);
+            await release.Task.WaitAsync(ct);
+        }));
+        var siblingB = queue.Enqueue(new OperationRequest(OperationType.Extract, "b.7z", async (_, ct) =>
+        {
+            await Arrive(ct);
+            await release.Task.WaitAsync(ct);
+        }));
+
+        var failedSnapshot = await queue.WaitForCompletionAsync(failing, TestContext.Token);
+        Assert.Equal(OperationState.Failed, failedSnapshot.State);
+        Assert.Equal(ArchiveErrorCode.CorruptData, failedSnapshot.Error?.Code);
+
+        // The siblings were already running when the failure above was recorded — proven by every one
+        // of the three having had to arrive before any could proceed — and neither was cancelled,
+        // failed, or otherwise disturbed by it.
+        release.TrySetResult();
+        var a = await queue.WaitForCompletionAsync(siblingA, TestContext.Token);
+        var b = await queue.WaitForCompletionAsync(siblingB, TestContext.Token);
+        Assert.Equal(OperationState.Completed, a.State);
+        Assert.Equal(OperationState.Completed, b.State);
+    }
+
+    /// <summary>
+    /// OPQ-027: DROP 09 — disposing the queue stops every operation it still knows about, running or
+    /// merely queued, and does so without hanging.
+    /// </summary>
+    /// <remarks>
+    /// The second operation here never reaches the slot gate before <see cref="OperationQueue.DisposeAsync"/>
+    /// is called — it is still <see cref="OperationState.Queued"/>. A shutdown that only cancelled running
+    /// work would leave it waiting on a slot that will now never free, which is a hang wearing a
+    /// <c>using</c> block. Both must end <see cref="OperationState.Cancelled"/>, and the dispose call
+    /// itself must return — proven by wrapping it in a timeout rather than trusting it not to hang.
+    /// </remarks>
+    [Fact]
+    public async Task Disposing_cancels_both_running_and_still_queued_operations()
+    {
+        var queue = NewQueue(concurrency: 1);
+        var running = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hold = new TaskCompletionSource();
+
+        var first = queue.Enqueue(new OperationRequest(OperationType.Extract, "a.7z", async (_, ct) =>
+        {
+            running.TrySetResult();
+            await hold.Task.WaitAsync(ct);
+        }));
+        var second = queue.Enqueue(new OperationRequest(
+            OperationType.Extract, "b.7z", static (_, _) => Task.CompletedTask));
+
+        await running.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Token);
+        Assert.Equal(OperationState.Queued, queue.Snapshot().Single(s => s.Id == second).State);
+
+        await queue.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), TestContext.Token);
+
+        Assert.Equal(OperationState.Cancelled, queue.Snapshot().Single(s => s.Id == first).State);
+        Assert.Equal(OperationState.Cancelled, queue.Snapshot().Single(s => s.Id == second).State);
+    }
 }

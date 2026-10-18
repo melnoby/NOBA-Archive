@@ -20,5 +20,5 @@ namespace NOBA.Archive.Cli;
 internal static class BuildStamp
 {
     /// <summary>Drop identifier. Format: date, then what the drop was about.</summary>
-    public const string Value = "2026-08-27-drop-08-phase-3-directory-identity";
+    public const string Value = "2026-10-18-drop-09-operations-center-concurrency";
 }

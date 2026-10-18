@@ -657,7 +657,195 @@ public sealed class OperationLifecycleTests
         Assert.True(filesAtCancellation < expectedFiles, "everything was written anyway");
     }
 
+    /// <summary>
+    /// OPX-017: DROP 09 — two real creations, enqueued on the real queue with two slots, both actually
+    /// run at the same time, and neither borrows a byte from the other.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other test above runs one real operation at a time; <c>OperationQueueTests</c>
+    /// (Application.Tests) proves the scheduler's admission and overlap logic against fake delegates.
+    /// Neither proves that <see cref="CreateArchiveHandler"/> — resolved once as a singleton by
+    /// <c>AddNobaArchiveEngine</c>, like <see cref="IArchiveProviderRegistry"/> and
+    /// <see cref="IFormatDetector"/> beneath it — tolerates two callers using it at the same moment.
+    /// </para>
+    /// <para>
+    /// The rendezvous below is deliberate, not a nicety: both operations must call
+    /// <c>ArriveAndWaitAsync</c> before either proceeds into the real handler, so a queue that quietly
+    /// serialised them — contrary to the two slots it was configured with — would make this test hang
+    /// and time out rather than pass by a timing accident.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Two_real_creations_run_concurrently_without_cross_talk()
+    {
+        using var sandbox = new TempDirectory("OPX-017");
+        var fileA = sandbox.Combine("a", "alpha.txt");
+        var fileB = sandbox.Combine("b", "beta.txt");
+        Directory.CreateDirectory(sandbox.Combine("a"));
+        Directory.CreateDirectory(sandbox.Combine("b"));
+        await File.WriteAllTextAsync(fileA, "payload-alpha", TestContext.Token);
+        await File.WriteAllTextAsync(fileB, "payload-beta", TestContext.Token);
+        var archiveA = sandbox.Combine("a.zip");
+        var archiveB = sandbox.Combine("b.zip");
+
+        await using var engine = new EngineFixture(password: null, maxConcurrentOperations: 2);
+        var queue = engine.Get<IOperationQueue>();
+        var create = engine.Get<CreateArchiveHandler>();
+        var rendezvous = new Rendezvous(2);
+
+        Func<OperationContext, CancellationToken, Task> Work(string target, string source) => async (context, ct) =>
+        {
+            await rendezvous.ArriveAndWaitAsync(ct);
+            await create.HandleAsync(
+                new CreateRequest
+                {
+                    TargetPath = target,
+                    Sources = [source],
+                    Options = CompressionOptions.ForProfile(ArchiveFormat.Zip, CompressionProfile.Balanced),
+                },
+                context.Id,
+                context.Progress,
+                context.PauseToken,
+                ct);
+        };
+
+        var idA = queue.Enqueue(new OperationRequest(OperationType.Create, "a.zip", Work(archiveA, fileA)));
+        var idB = queue.Enqueue(new OperationRequest(OperationType.Create, "b.zip", Work(archiveB, fileB)));
+
+        var snapshotA = await queue.WaitForCompletionAsync(idA, TestContext.Token);
+        var snapshotB = await queue.WaitForCompletionAsync(idB, TestContext.Token);
+
+        Assert.Equal(OperationState.Completed, snapshotA.State);
+        Assert.Equal(OperationState.Completed, snapshotB.State);
+
+        var listA = await engine.ListAsync(archiveA, TestContext.Token);
+        var listB = await engine.ListAsync(archiveB, TestContext.Token);
+        Assert.Equal(["alpha.txt"], listA.Entries.Where(static e => !e.IsDirectory).Select(static e => e.DisplayPath));
+        Assert.Equal(["beta.txt"], listB.Entries.Where(static e => !e.IsDirectory).Select(static e => e.DisplayPath));
+    }
+
+    /// <summary>
+    /// OPX-018: DROP 09 — two real extractions, from two different archives into two different
+    /// destinations, run concurrently and land only in their own folder.
+    /// </summary>
+    /// <remarks>
+    /// The destinations are checked both ways: archive A's file must be the only thing under A's folder,
+    /// and B's the only thing under B's — a shared buffer or a mis-captured closure in the handler would
+    /// most plausibly show up as one file quietly appearing in, or vanishing from, the wrong folder.
+    /// </remarks>
+    [Fact]
+    public async Task Two_real_extractions_run_concurrently_without_cross_talk()
+    {
+        using var sandbox = new TempDirectory("OPX-018");
+        var archiveA = SafeLargeArchive(sandbox, out _);
+
+        var sourceB = sandbox.Combine("source-b");
+        Directory.CreateDirectory(sourceB);
+        await File.WriteAllTextAsync(Path.Combine(sourceB, "only-in-b.txt"), "b-content", TestContext.Token);
+        var archiveB = sandbox.Combine("b.zip");
+        await using (var builder = new EngineFixture())
+        {
+            await builder.CreateAsync(archiveB, [sourceB], cancellationToken: TestContext.Token);
+        }
+
+        var destinationA = sandbox.Combine("out-a");
+        var destinationB = sandbox.Combine("out-b");
+
+        await using var engine = new EngineFixture(password: null, maxConcurrentOperations: 2);
+        var queue = engine.Get<IOperationQueue>();
+        var extract = engine.Get<ExtractArchiveHandler>();
+        var rendezvous = new Rendezvous(2);
+
+        Func<OperationContext, CancellationToken, Task> Work(string archive, string destination) => async (context, ct) =>
+        {
+            await rendezvous.ArriveAndWaitAsync(ct);
+            await extract.HandleAsync(Request(archive, destination), context.Id, context.Progress, context.PauseToken, ct);
+        };
+
+        var idA = queue.Enqueue(new OperationRequest(OperationType.Extract, "a.zip", Work(archiveA, destinationA)));
+        var idB = queue.Enqueue(new OperationRequest(OperationType.Extract, "b.zip", Work(archiveB, destinationB)));
+
+        var snapshotA = await queue.WaitForCompletionAsync(idA, TestContext.Token);
+        var snapshotB = await queue.WaitForCompletionAsync(idB, TestContext.Token);
+
+        Assert.Equal(OperationState.Completed, snapshotA.State);
+        Assert.Equal(OperationState.Completed, snapshotB.State);
+
+        var aFiles = Directory.GetFiles(destinationA, "*", SearchOption.AllDirectories).Select(Path.GetFileName).ToList();
+        var bFiles = Directory.GetFiles(destinationB, "*", SearchOption.AllDirectories).Select(Path.GetFileName).ToList();
+        Assert.False(aFiles.Contains("only-in-b.txt"), "b's file landed in a's destination");
+        Assert.Equal(["only-in-b.txt"], bFiles);
+    }
+
+    /// <summary>
+    /// OPX-019: DROP 09 — a real operation failing concurrently does not disturb a sibling that is
+    /// genuinely running at the same moment.
+    /// </summary>
+    /// <remarks>
+    /// The sibling is held at the rendezvous until the failing one has arrived too, so the failure is
+    /// recorded while the sibling's own real extraction is still in flight — not safely after it. The
+    /// per-id dictionaries this test exercises (<c>_outcomes</c> / <c>_testResults</c> in
+    /// <c>EngineWorkspace</c>, DEBT-06) cannot themselves be built or referenced from this project —
+    /// <c>NOBA.Archive.App</c> is Windows-only — so this proves the identical pattern production code
+    /// actually uses (an outcome parked by operation id, written from concurrent queue-driven work, read
+    /// once by the caller that awaited it) rather than the App-layer class itself.
+    /// </remarks>
+    [Fact]
+    public async Task A_failing_real_operation_does_not_disturb_a_concurrent_real_sibling()
+    {
+        using var sandbox = new TempDirectory("OPX-019");
+        var archive = SafeLargeArchive(sandbox, out var expectedFiles);
+        var destination = sandbox.Combine("out");
+        var missingArchive = sandbox.Combine("does-not-exist.zip");
+
+        await using var engine = new EngineFixture(password: null, maxConcurrentOperations: 2);
+        var queue = engine.Get<IOperationQueue>();
+        var extract = engine.Get<ExtractArchiveHandler>();
+        var rendezvous = new Rendezvous(2);
+
+        var failing = queue.Enqueue(new OperationRequest(OperationType.Extract, "missing.zip", async (context, ct) =>
+        {
+            await rendezvous.ArriveAndWaitAsync(ct);
+            await extract.HandleAsync(
+                Request(missingArchive, sandbox.Combine("missing-out")), context.Id, context.Progress, context.PauseToken, ct);
+        }));
+        var sibling = queue.Enqueue(new OperationRequest(OperationType.Extract, "safe.zip", async (context, ct) =>
+        {
+            await rendezvous.ArriveAndWaitAsync(ct);
+            await extract.HandleAsync(Request(archive, destination), context.Id, context.Progress, context.PauseToken, ct);
+        }));
+
+        var failedSnapshot = await queue.WaitForCompletionAsync(failing, TestContext.Token);
+        var siblingSnapshot = await queue.WaitForCompletionAsync(sibling, TestContext.Token);
+
+        Assert.Equal(OperationState.Failed, failedSnapshot.State);
+        Assert.NotNull(failedSnapshot.Error);
+
+        Assert.Equal(OperationState.Completed, siblingSnapshot.State);
+        Assert.Equal(expectedFiles, Directory.GetFiles(destination, "*", SearchOption.AllDirectories).Length);
+    }
+
     // ---------- fixtures ----------
+
+    /// <summary>Every participant must arrive before any may proceed. DROP 09's concurrency tests use
+    /// this instead of a sleep: a queue that fails to run them side by side makes the test hang and time
+    /// out, rather than pass on a timing accident.</summary>
+    private sealed class Rendezvous(int participants)
+    {
+        private int _arrived;
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task ArriveAndWaitAsync(CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _arrived) == participants)
+            {
+                _gate.TrySetResult();
+            }
+
+            await _gate.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     private static ExtractRequest Request(string archivePath, string destination) =>
         new()
