@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-13-release-security-audit`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-19-drop-13-followup-l40-l45`
 
 ---
 
@@ -247,12 +247,12 @@ rather than transcribed.
 | L37 | **The WinUI archive tree still loads every entry into memory at open time, search or not.** `SearchArchiveHandler` honors "large-archive browsing without loading everything into the UI" at the Application-layer contract (streams matches; buffers only the matched subset when sorted), but `BrowseViewModel.OpenAsync` → `ArchiveNode.BuildTree` was not touched this drop and still builds the whole tree up front, and `Refresh()`'s search mode still flattens that whole tree before filtering it. Restructuring the WinUI screen itself around the new streaming contract is a larger UI-architecture change, out of scope for a drop this session can verify only on Linux | DROP 10, 11 |
 | L38 | **UI responsiveness and startup-to-interactive are unmeasured.** DROP 11 measured CLI-surfaced operations (`create`/`list`/`search`/`extract`/`test`) and process memory on Linux; the WinUI desktop app (`NOBA.Archive.App`) cannot be built, started, or driven from this session, so first-paint latency, tree-population responsiveness on a large archive, and startup-to-interactive time have no measurement anywhere — only the non-UI engine work the CLI exercises is covered | a Windows UI run |
 | L39 | **`ExtractionWriter`'s per-entry temp files have no orphan sweep.** DROP 12 gave `ArchivePublisher`'s staging file a PID-stamped name and a sweep at `BeginAsync`, closing that half of "a killed process leaves a `.noba-*.tmp` behind forever." The per-entry temp file `ExtractionWriter.BeginEntryAsync` opens in each destination directory has the identical gap and was deliberately left alone this drop: that file is explicitly security-critical (ADR-0005, the 2025 archiver CVE mitigations, the TOCTOU handle re-verification) and this session judged editing it without a Windows run to verify the result was the wrong trade against a secondary cleanup concern | a later drop |
-| L40 | **No real process-kill test harness exists anywhere.** Every "crash recovery" test in this codebase, including DROP 12's new `ArchivePublisherTests`, proves the *mechanism* (a stale file stamped with a dead PID gets swept) by constructing that artifact directly, never by actually starting `noba-ar`, killing it mid-operation, and inspecting what is left. The design is sound and the simulated case is deterministic and real evidence, but an out-of-process kill harness would be a different, stronger kind of proof that nothing in this codebase has | a later drop |
+| ~~L40~~ | ~~No real process-kill test harness exists anywhere.~~ **Closed in the DROP 13 follow-up.** `RealProcessCrashTests.cs` spawns the real compiled `noba-ar` apphost as a genuine OS child process, polls (never sleeps) for the staging file and write-lock to appear, issues a real `Process.Kill(entireProcessTree: true)` (actual SIGKILL) while it is provably still writing, then runs the real `ArchivePublisher` against what that kill actually left behind — proving the sweep and lock-reclaim mechanisms survive an authentic crash, not just a hand-placed artifact | Closed |
 | L41 | **The native 7z interop materialises an un-wipeable plaintext password `string`.** `Password` exists specifically so a password never becomes a managed `string` (strings cannot be zeroed) — but `SevenZipArchiveProvider.Reveal` copies it into an un-pinned, never-zeroed `byte[]`, and `Interop/Callbacks.cs`/`Interop/UpdateCallback.cs` build a real `System.String` from it right before `Marshal.StringToBSTR`, the exact object the design exists to avoid. Found reading the interop code during DROP 13's audit; not changed, because exercising it needs a real `7z.dll`, which this Linux build machine does not have (same gap as `L34`), and marshalling code this memory-safety-sensitive is not something to edit without that proof | a Windows run with `7z.dll` present |
 | L42 | **`LinkPolicy.WhenInsideDestination` does not create a real link.** No `CreateSymbolicLink`/hardlink Win32 call exists anywhere in this codebase; a link entry that clears the inside-destination check is written as an ordinary file instead. Safer than the setting's name promises, not less safe — but the feature as named is not built. The CLI's `extract` always passed `LinkPolicy.Never` regardless of `--no-links` (`parsed.HasFlag("no-links") ? LinkPolicy.Never : LinkPolicy.Never` — both branches identical); fixed to say that plainly rather than imply a choice that was never real | a later drop, if real link creation is ever built |
 | L43 | **`ResourceGuard.CheckMemoryBudget`/`CheckNestedDepth` are unit-tested in isolation and wired to nothing.** No caller in `Application`, `Backends.SevenZip`, or `Formats` ever calls either one — the same "built, tested alone, never actually called" shape DROP 12 already found once in `ITempWorkspaceFactory.SweepOrphans()`. There is no real call site to wire them into yet: nothing surfaces a declared dictionary size as a pre-allocation decision, and no feature auto-opens a nested archive. `THREAT_MODEL.md` T3's table corrected to stop claiming these as live | a drop that builds the feature these would guard |
 | L44 | **Two shell-adapter gaps found, neither touched.** `NobaSubCommand.cpp`'s `QuoteArgument` — the one function that re-serialises a selected filename into a Win32 command line for the modern (unshipped) `IExplorerCommand` path — has zero test coverage anywhere; hand-tracing it found no live bug, but nothing in CI would notice if a future change reopened the injection class ADR-0006/SHELL-024 exist to close. `Core/Actions/ShellCommandLine.Parse` (forbidden file — standing rule, not touched) fails the *entire* App-hosted shell request (`Open with NOBA Archive`, `Extract to…`, `Create archive…`) when any argument after the verb starts with `-`, rather than rejecting just that one file; opening a file named e.g. `-report.zip` this way silently opens an empty window instead of the archive. Fails closed (never misreads the argument as a flag), so not a security defect, but a real, confusing functional gap | a Windows native-toolchain session, for the first; whoever next touches ADR-0006/`ShellCommandLine`, for the second |
-| L45 | **Architecture-test coverage has two unenforced gaps, no live violation found behind either.** `MemberLevelRuleTests`' sync-over-async and console-write rules run against `Core`/`Security`/`Application`/`Infrastructure`/`Formats`/`Engine`/`Cli` only — `Presentation`, `Windows`, `ShellBridge`, and `App` were checked by hand during DROP 13 and found clean, but nothing machine-enforces that staying true, and `ShellBridge` is specifically a case where a blocking call would hang Explorer's own context menu, not just this process. `DependencyDirectionTests` asserts `ShellBridge` may reference everything but never asserts the other half of its own documented rule — that nothing may reference `ShellBridge` back — true today by inspection, not by test | a later drop |
+| ~~L45~~ | ~~Architecture-test coverage has two unenforced gaps, no live violation found behind either.~~ **Closed in the DROP 13 follow-up.** `MemberLevelRuleTests`' sync-over-async and console-write rules now also run against `Presentation`, `Windows`, and `ShellBridge` (verified clean by `grep` before adding coverage, to avoid a false-positive failure); `DependencyDirectionTests` gained `Nothing_references_shell_bridge_back`, enforcing the other half of `ShellBridge`'s documented rule. `NOBA.Archive.App` remains unpoliced, stated in the test's own remarks, because it cannot be built from this session | Closed |
 
 ---
 
@@ -309,8 +309,8 @@ the running app. A SKIP it prints is not a pass.
 | 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
 | 11 | Performance and Scale | 05, 07 | must measure, not guess | `LINUX` | WinUI build + a Windows run; R17/R18 (native 7Z backend, solid-archive scaling) still need `scripts\benchmark.ps1` on real Windows hardware; UI responsiveness/startup-to-interactive unverified from this session (L38); nothing measured above 20,000 entries |
-| 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `LINUX` | WinUI build + a Windows run; no real process-kill harness (L40); `ExtractionWriter`'s per-entry temps still have no orphan sweep, deliberately deferred (L39); WinUI startup never calls `SweepOrphans()` (CLI's does, as of this drop) |
-| 13 | Release Security Audit | 06, 12 | hostile review of everything | `LINUX` | WinUI build + a Windows run with real `7z.dll`; `L41` (native 7z password string), `L42` (`LinkPolicy.WhenInsideDestination` inert), `L44` (shell-adapter `QuoteArgument`/`ShellCommandLine` gaps) all need a Windows session to verify or are on the forbidden-files list; `L38` (UI responsiveness) and `L35`/`L37` (WinUI search/tree) remain from earlier drops |
+| 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `LINUX` | WinUI build + a Windows run; real process-kill harness closed by the DROP 13 follow-up (L40); `ExtractionWriter`'s per-entry temps still have no orphan sweep, deliberately deferred (L39); WinUI startup never calls `SweepOrphans()` (CLI's does, as of this drop) |
+| 13 | Release Security Audit | 06, 12 | hostile review of everything | `LINUX` | WinUI build + a Windows run with real `7z.dll`; `L41` (native 7z password string), `L42` (`LinkPolicy.WhenInsideDestination` inert), `L44` (shell-adapter `QuoteArgument`/`ShellCommandLine` gaps) all need a Windows session to verify or are on the forbidden-files list; `L38` (UI responsiveness) and `L35`/`L37` (WinUI search/tree) remain from earlier drops; `L40` and `L45` closed by a same-session follow-up (see "DROP 13 follow-up" below) |
 | 14 | Product Polish | 10 | must not redesign | `TODO` | — |
 | 15 | Release Candidate | all | evidence, not optimism | `TODO` | — |
 
@@ -982,6 +982,41 @@ unenforced by machine, verified clean by hand but not guarded against regressing
 **Evidence:** `930 / 6` (Linux unit + integration + architecture + CLI + parity + presentation),
 analyzer preflight PASS, `artifacts/test-20261019-063213/`.
 
+#### DROP 13 follow-up — closing L40 and L45
+
+Same session, after DROP 13 was already committed and pushed. DROP 14/15 need WinUI (cannot be
+built or verified here); DROP 10 is genuinely blocked on a real Windows UX session; DROP 08's
+manual gate and anything touching the forbidden shell files are out of bounds without the user.
+`L40` and `L45` were the two DROP 13 findings that were real, Linux-doable, and did not depend on
+a capability this session lacks — so they were closed rather than left for "a later drop."
+
+- **L40 — a real process-kill test harness.** `RealProcessCrashTests.cs`
+  (`tests/NOBA.Archive.Integration.Tests/`) spawns the actual compiled `noba-ar` apphost as a genuine
+  OS child process (not `dotnet exec`), polls for the staging file and write-lock to appear (never a
+  fixed sleep), issues a real `Process.Kill(entireProcessTree: true)` while it is provably still
+  mid-write, and then runs the real `ArchivePublisher` against what that kill actually left behind.
+  Every earlier "crash recovery" test in this codebase, DROP 12's included, proved the sweep
+  *mechanism* by hand-placing a dead-PID-stamped artifact; this is the first proof against an
+  authentic crash.
+- **L45 — two unenforced architecture invariants.** `MemberLevelRuleTests`' sync-over-async and
+  console-write rules were extended to also run against `Presentation`, `Windows`, and `ShellBridge`
+  (each confirmed clean by `grep` for the actual violating call shapes before adding the
+  `InlineData`, specifically to avoid introducing a false-positive failure). `DependencyDirectionTests`
+  gained `Nothing_references_shell_bridge_back`, machine-enforcing the other half of `ShellBridge`'s
+  own documented rule — that nothing may reference it back — which was previously true only by
+  inspection. `NOBA.Archive.App` stays unpoliced by necessity, stated in the test's own remarks,
+  because it cannot be built from this session.
+
+Both closures were re-verified end to end: the Integration suite was rebuilt and rerun clean three
+consecutive times (206/206 each run, including the pre-existing `OperationLifecycleTests` flake
+that had reappeared once during this same session's earlier run) to confirm that flake is unrelated
+to this drop's `OperationQueue.cs` changes — it only exercises `Enqueue`'s new `_lifecycleGate`, a
+narrow critical section around the disposed-check-and-insert that has no bearing on the test's
+completion-state assertions, and never touches `TryPause`/`TryResume` or progress sequencing at all.
+
+**Evidence:** `941 / 6` (Linux unit + integration + architecture + CLI + parity + presentation),
+analyzer preflight PASS, `artifacts/test-20261019-065508/`.
+
 ### DROP 14 — Product Polish
 - **Scope:** every screen and state — spacing, typography, icons, hierarchy, buttons, keyboard, dark
   mode, both languages, path rendering, progress, operation states.
@@ -1022,6 +1057,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-10-18 | DROP 03 — Archive Management (CLI surface + doc reconciliation) | `…-drop-03-archive-management-cli` | 915 / 6 | — | PASS | not run | `artifacts/test-20261018-235106/` |
 | 2026-10-18 | DROP 12 — Recovery and Failure Safety | `…-drop-12-recovery-and-failure-safety` | 922 / 6 | — | PASS | not run | `artifacts/test-20261019-002711/` |
 | 2026-10-19 | DROP 13 — Release Security Audit | `…-drop-13-release-security-audit` | 930 / 6 | — | PASS | not run | `artifacts/test-20261019-063213/` |
+| 2026-10-19 | DROP 13 follow-up — L40/L45 closure | `…-drop-13-followup-l40-l45` | 941 / 6 | — | PASS | not run | `artifacts/test-20261019-065508/` |
 
 ---
 

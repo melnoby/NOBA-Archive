@@ -29,6 +29,8 @@ public sealed class MemberLevelRuleTests
     [InlineData("NOBA.Archive.Formats")]
     [InlineData("NOBA.Archive.Engine")]
     [InlineData("NOBA.Archive.Windows")]
+    [InlineData("NOBA.Archive.Presentation")]
+    [InlineData("NOBA.Archive.ShellBridge")]
     public void Does_not_touch_the_filesystem_directly(string assemblyName)
     {
         string[] banned = ["System.IO.File", "System.IO.Directory", "System.IO.FileInfo", "System.IO.DirectoryInfo"];
@@ -50,6 +52,8 @@ public sealed class MemberLevelRuleTests
     [InlineData("NOBA.Archive.Formats")]
     [InlineData("NOBA.Archive.Engine")]
     [InlineData("NOBA.Archive.Windows")]
+    [InlineData("NOBA.Archive.Presentation")]
+    [InlineData("NOBA.Archive.ShellBridge")]
     public void Does_not_write_to_the_console(string assemblyName)
     {
         var probe = AssemblyProbe.Load(assemblyName);
@@ -63,9 +67,20 @@ public sealed class MemberLevelRuleTests
     /// Blocking on a task is how a UI freezes and how a deadlock reaches production.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A generic instantiation such as <c>Task&lt;int&gt;.Result</c> is recorded as a TypeSpecification
     /// and is not visible to this check; the non-generic <c>Task.Wait</c>, <c>Task.Result</c> and the
     /// awaiter forms are. The gap is documented rather than hidden.
+    /// </para>
+    /// <para>
+    /// <b>DROP 13.</b> <c>Windows</c>, <c>Presentation</c> and <c>ShellBridge</c> were policed by hand
+    /// during that drop's audit and found clean, but not by this test - an unenforced invariant is
+    /// one a later change can break with nothing going red. <c>ShellBridge</c> specifically runs
+    /// inside a surrogate process Explorer itself lends a thread to; a blocking call there would hang
+    /// Explorer's own context menu, not just this process. <c>NOBA.Archive.App</c> (WinUI) cannot be
+    /// built from this session (same reason it is absent from every rule in this file) and stays
+    /// unpoliced here for that reason, not because it is exempt.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData("NOBA.Archive.Core")]
@@ -75,6 +90,9 @@ public sealed class MemberLevelRuleTests
     [InlineData("NOBA.Archive.Formats")]
     [InlineData("NOBA.Archive.Engine")]
     [InlineData("NOBA.Archive.Cli")]
+    [InlineData("NOBA.Archive.Windows")]
+    [InlineData("NOBA.Archive.Presentation")]
+    [InlineData("NOBA.Archive.ShellBridge")]
     public void Does_not_block_on_a_task(string assemblyName)
     {
         string[] blockingParents =
@@ -208,6 +226,8 @@ public sealed class MemberLevelRuleTests
     [InlineData("NOBA.Archive.Windows")]
     [InlineData("NOBA.Archive.Cli")]
     [InlineData("NOBA.Archive.Backends.SevenZip")]
+    [InlineData("NOBA.Archive.Presentation")]
+    [InlineData("NOBA.Archive.ShellBridge")]
     public void Nothing_outside_infrastructure_writes_to_the_filesystem_by_path(string assemblyName)
     {
         string[] mutatingTypes = ["File", "Directory", "FileInfo", "DirectoryInfo"];

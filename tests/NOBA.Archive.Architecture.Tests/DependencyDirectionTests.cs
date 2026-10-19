@@ -81,6 +81,27 @@ public sealed class DependencyDirectionTests
     }
 
     /// <summary>
+    /// The other half of <c>ShellBridge</c>'s own doc comment above: "it may NOT be referenced by
+    /// anything". <see cref="Only_references_the_layers_it_is_allowed_to"/> only ever checks what
+    /// <c>ShellBridge</c> itself references out, never whether something else references it in -
+    /// true today by inspection (nothing in <c>src/</c> references it except its own test project),
+    /// not by this test, until now. Found during DROP 13's audit as an unenforced invariant, not a
+    /// live violation.
+    /// </summary>
+    [Fact]
+    public void Nothing_references_shell_bridge_back()
+    {
+        var violations = Allowed.Keys
+            .Where(name => !string.Equals(name, ShellBridge, StringComparison.Ordinal))
+            .Where(name => AssemblyProbe.Load(name).AssemblyReferences.Contains(ShellBridge, StringComparer.Ordinal))
+            .ToList();
+
+        Assert.True(
+            violations.Count == 0,
+            $"{string.Join(", ", violations)} reference {ShellBridge}, which may be referenced by nothing.");
+    }
+
+    /// <summary>
     /// Every product project is covered by the table above.
     /// </summary>
     /// <remarks>
