@@ -135,6 +135,135 @@ public sealed class RealProcessCrashTests : IDisposable
         Assert.False(File.Exists(lockFileAfterKill), "This publication's own lock should be released on dispose.");
     }
 
+    /// <summary>
+    /// The extraction-side mirror of the fact above, closing <c>L39</c> the same way DROP 12/13 closed
+    /// it for <see cref="ArchivePublisher"/>'s staging file: this spawns the real <c>noba-ar</c> binary
+    /// to <em>extract</em> rather than create, kills it with a real SIGKILL while it is provably still
+    /// writing the one entry, and only then lets the production sweep run against what that kill
+    /// really left behind.
+    /// </summary>
+    [Fact]
+    public async Task A_real_kill_mid_extract_leaves_an_orphaned_temp_file_the_next_invocation_really_sweeps()
+    {
+        var cliPath = LocateCliExecutable();
+
+        // Stored rather than compressed and large enough that writing it back out is the one thing
+        // slow enough to reliably observe and kill - the decompression-side equivalent of why the
+        // create test above compresses incompressible data at level 9. Decoding a stored entry is
+        // essentially a raw copy, so the size has to do the work level 9 did for the create case.
+        var payload = new byte[512 * 1024 * 1024];
+        new Random(20261019).NextBytes(payload);
+        var sourceFile = Path.Combine(_root, "payload.bin");
+        await File.WriteAllBytesAsync(sourceFile, payload);
+
+        var archive = Path.Combine(_root, "source.zip");
+        using (var create = Process.Start(new ProcessStartInfo
+        {
+            FileName = cliPath,
+            WorkingDirectory = _root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            ArgumentList = { "create", archive, sourceFile, "--format", "zip", "--level", "0" },
+        }) ?? throw new InvalidOperationException("Failed to start noba-ar create."))
+        {
+            await create.WaitForExitAsync();
+            if (create.ExitCode != 0)
+            {
+                var stderr = await create.StandardError.ReadToEndAsync();
+                throw new InvalidOperationException(
+                    $"Fixture archive creation failed (code {create.ExitCode}): {stderr}");
+            }
+        }
+
+        var destination = Path.Combine(_root, "extracted");
+        Directory.CreateDirectory(destination);
+
+        var extractInfo = new ProcessStartInfo
+        {
+            FileName = cliPath,
+            WorkingDirectory = _root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            ArgumentList = { "extract", archive, "-o", destination },
+        };
+
+        using var process = Process.Start(extractInfo)
+            ?? throw new InvalidOperationException("Failed to start noba-ar extract.");
+
+        string? staging;
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            staging = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                staging = Directory.EnumerateFiles(destination, ".noba-*.tmp").FirstOrDefault();
+                if (staging is not null)
+                {
+                    break;
+                }
+
+                if (process.HasExited)
+                {
+                    var stderr = await process.StandardError.ReadToEndAsync();
+                    throw new InvalidOperationException(
+                        $"noba-ar extract exited (code {process.ExitCode}) before staging a file: {stderr}");
+                }
+
+                await Task.Delay(5);
+            }
+
+            Assert.NotNull(staging);
+
+            process.Kill(entireProcessTree: true);
+            using var exitTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(exitTimeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Assert.Fail("The killed process did not exit within 5s.");
+            }
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+
+        var extractedFile = Path.Combine(destination, "payload.bin");
+        Assert.True(File.Exists(staging), "The temp file must survive a killed process.");
+        Assert.False(File.Exists(extractedFile), "A killed extraction must never produce the finished file.");
+
+        // The real production class, not a stand-in: a fresh extraction into the same destination
+        // must sweep the real orphan and succeed - now proven against an artifact an actual kill
+        // produced rather than one this test placed by hand.
+        using var rerun = Process.Start(new ProcessStartInfo
+        {
+            FileName = cliPath,
+            WorkingDirectory = _root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            ArgumentList = { "extract", archive, "-o", destination },
+        }) ?? throw new InvalidOperationException("Failed to start the re-run noba-ar extract.");
+
+        await rerun.WaitForExitAsync();
+        if (rerun.ExitCode != 0)
+        {
+            var stderr = await rerun.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException($"The re-run extraction failed (code {rerun.ExitCode}): {stderr}");
+        }
+
+        Assert.False(File.Exists(staging), "The dead process's temp file should have been swept.");
+        Assert.True(File.Exists(extractedFile));
+    }
+
     private static string LocateCliExecutable()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);

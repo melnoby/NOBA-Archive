@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using NOBA.Archive.Core.Abstractions;
 using NOBA.Archive.Core.Errors;
@@ -31,11 +33,27 @@ namespace NOBA.Archive.Infrastructure.FileSystem;
 /// before the open, and anything can change in between.</item>
 /// <item>Stream through the bomb guard, publish atomically, then apply metadata and Mark of the Web.</item>
 /// </list>
+/// <para>
+/// <b>DROP 13 follow-up (L39).</b> A thrown exception already left no temp file behind
+/// (<see cref="EntryWriteSession.AbandonAsync"/> cleans it up), but a killed process skips disposal
+/// entirely, same gap <see cref="ArchivePublisher"/> closed for its own staging file in DROP 12/13.
+/// The per-entry temp name now carries the owning PID (<c>.noba-{pid}-{guid}.tmp</c>), and the first
+/// time a given destination directory is touched, any same-shaped sibling whose PID belongs to a
+/// process that no longer exists is swept before this entry's own temp file is opened — the same
+/// liveness check (<see cref="ProcessLiveness"/>) <see cref="TempWorkspaceFactory.SweepOrphans"/> and
+/// <see cref="ArchivePublisher"/> already use. Swept once per directory rather than once per entry:
+/// an archive with thousands of entries in one folder would otherwise pay a directory listing on
+/// every single one for a check whose answer cannot change within that run.
+/// </para>
 /// </remarks>
 public sealed partial class ExtractionWriter : IExtractionWriter
 {
     private const string TempPrefix = ".noba-";
     private const string TempSuffix = ".tmp";
+
+    private static readonly Regex TempFileName = new(
+        @"^\.noba-(?<pid>\d+)-[0-9a-fA-F]{32}\.tmp$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly IFileSystem _fileSystem;
     private readonly IPathPolicy _pathPolicy;
@@ -43,6 +61,7 @@ public sealed partial class ExtractionWriter : IExtractionWriter
     private readonly IExtractionPlatform _platform;
     private readonly IConflictResolutionService _conflicts;
     private readonly ILogger<ExtractionWriter> _logger;
+    private readonly ConcurrentDictionary<string, byte> _sweptDirectories = new(StringComparer.Ordinal);
     private int _reducedAssuranceReported;
 
     public ExtractionWriter(
@@ -122,9 +141,13 @@ public sealed partial class ExtractionWriter : IExtractionWriter
             }
         }
 
+        SweepOrphanedTempFiles(directory, cancellationToken);
+
         var temp = Path.Combine(
             directory,
-            string.Create(CultureInfo.InvariantCulture, $"{TempPrefix}{Guid.NewGuid():N}{TempSuffix}"));
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{TempPrefix}{Environment.ProcessId}-{Guid.NewGuid():N}{TempSuffix}"));
 
         var preallocate = entry.UncompressedSize.Bytes is > 0 and < (1L << 40)
             ? entry.UncompressedSize.Bytes
@@ -467,6 +490,54 @@ public sealed partial class ExtractionWriter : IExtractionWriter
         catch (ArchiveOperationException ex)
         {
             LogMetadataSkipped(_logger, "temporary-file cleanup", temp, ex);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort, same as <see cref="ArchivePublisher"/>'s own sweep: a temp file this fails to
+    /// remove is untidy, not unsafe, so nothing here is allowed to fail the entry that is about to be
+    /// written. Runs at most once per directory for the life of this writer - see the DROP 13
+    /// follow-up remark on the class itself for why.
+    /// </summary>
+    private void SweepOrphanedTempFiles(string directory, CancellationToken cancellationToken)
+    {
+        if (!_sweptDirectories.TryAdd(directory, 0))
+        {
+            return;
+        }
+
+        if (!_fileSystem.DirectoryExists(directory))
+        {
+            return;
+        }
+
+        foreach (var entry in _fileSystem.EnumerateEntries(directory, recursive: false, cancellationToken))
+        {
+            if (entry.IsDirectory)
+            {
+                continue;
+            }
+
+            var match = TempFileName.Match(entry.Name);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            if (!int.TryParse(match.Groups["pid"].Value, CultureInfo.InvariantCulture, out var pid) ||
+                ProcessLiveness.IsAlive(pid))
+            {
+                continue;
+            }
+
+            try
+            {
+                _fileSystem.DeleteFile(entry.FullPath);
+            }
+            catch (ArchiveOperationException)
+            {
+                // Someone else may be touching it right now; leave it for the next sweep.
+            }
         }
     }
 

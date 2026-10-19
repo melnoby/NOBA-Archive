@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-19-drop-13-followup-l40-l45`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-19-drop-13-followup-l39-race-fix`
 
 ---
 
@@ -246,7 +246,7 @@ rather than transcribed.
 | ~~L36~~ | ~~"Deterministic and fast search" is proven deterministic, not measured fast.~~ **Closed in DROP 11.** `docs/PERFORMANCE.md` now measures `search` against `list` at 200/2,000/20,000 entries (`scripts/benchmark-linux.sh`); they cost about the same at every scale, confirming `SearchArchiveHandler` adds no second pass. `PRF-003` turns the shape ("grows with entries scanned, not quadratically") into a repeatable allocation-ratio regression test | Closed |
 | L37 | **The WinUI archive tree still loads every entry into memory at open time, search or not.** `SearchArchiveHandler` honors "large-archive browsing without loading everything into the UI" at the Application-layer contract (streams matches; buffers only the matched subset when sorted), but `BrowseViewModel.OpenAsync` → `ArchiveNode.BuildTree` was not touched this drop and still builds the whole tree up front, and `Refresh()`'s search mode still flattens that whole tree before filtering it. Restructuring the WinUI screen itself around the new streaming contract is a larger UI-architecture change, out of scope for a drop this session can verify only on Linux | DROP 10, 11 |
 | L38 | **UI responsiveness and startup-to-interactive are unmeasured.** DROP 11 measured CLI-surfaced operations (`create`/`list`/`search`/`extract`/`test`) and process memory on Linux; the WinUI desktop app (`NOBA.Archive.App`) cannot be built, started, or driven from this session, so first-paint latency, tree-population responsiveness on a large archive, and startup-to-interactive time have no measurement anywhere — only the non-UI engine work the CLI exercises is covered | a Windows UI run |
-| L39 | **`ExtractionWriter`'s per-entry temp files have no orphan sweep.** DROP 12 gave `ArchivePublisher`'s staging file a PID-stamped name and a sweep at `BeginAsync`, closing that half of "a killed process leaves a `.noba-*.tmp` behind forever." The per-entry temp file `ExtractionWriter.BeginEntryAsync` opens in each destination directory has the identical gap and was deliberately left alone this drop: that file is explicitly security-critical (ADR-0005, the 2025 archiver CVE mitigations, the TOCTOU handle re-verification) and this session judged editing it without a Windows run to verify the result was the wrong trade against a secondary cleanup concern | a later drop |
+| ~~L39~~ | ~~`ExtractionWriter`'s per-entry temp files have no orphan sweep.~~ **Closed in a second DROP 13 follow-up, on the user's explicit override of this row's own caution.** `ExtractionWriter`'s per-entry temp name now carries the owning PID (`.noba-{pid}-{guid}.tmp`, the same shape `ArchivePublisher` already used), and the first time a destination directory is touched any same-shaped sibling owned by a dead process is swept before this entry's own temp file opens — once per directory, not once per entry, so an archive with thousands of entries in one folder does not pay a directory listing per file. Nothing about the TOCTOU handle re-verification, the path policy, or the 2025 CVE mitigations changed; the sweep runs before a temp file is opened, never after, so it cannot be the thing a crafted entry races | Closed |
 | ~~L40~~ | ~~No real process-kill test harness exists anywhere.~~ **Closed in the DROP 13 follow-up.** `RealProcessCrashTests.cs` spawns the real compiled `noba-ar` apphost as a genuine OS child process, polls (never sleeps) for the staging file and write-lock to appear, issues a real `Process.Kill(entireProcessTree: true)` (actual SIGKILL) while it is provably still writing, then runs the real `ArchivePublisher` against what that kill actually left behind — proving the sweep and lock-reclaim mechanisms survive an authentic crash, not just a hand-placed artifact | Closed |
 | L41 | **The native 7z interop materialises an un-wipeable plaintext password `string`.** `Password` exists specifically so a password never becomes a managed `string` (strings cannot be zeroed) — but `SevenZipArchiveProvider.Reveal` copies it into an un-pinned, never-zeroed `byte[]`, and `Interop/Callbacks.cs`/`Interop/UpdateCallback.cs` build a real `System.String` from it right before `Marshal.StringToBSTR`, the exact object the design exists to avoid. Found reading the interop code during DROP 13's audit; not changed, because exercising it needs a real `7z.dll`, which this Linux build machine does not have (same gap as `L34`), and marshalling code this memory-safety-sensitive is not something to edit without that proof | a Windows run with `7z.dll` present |
 | L42 | **`LinkPolicy.WhenInsideDestination` does not create a real link.** No `CreateSymbolicLink`/hardlink Win32 call exists anywhere in this codebase; a link entry that clears the inside-destination check is written as an ordinary file instead. Safer than the setting's name promises, not less safe — but the feature as named is not built. The CLI's `extract` always passed `LinkPolicy.Never` regardless of `--no-links` (`parsed.HasFlag("no-links") ? LinkPolicy.Never : LinkPolicy.Never` — both branches identical); fixed to say that plainly rather than imply a choice that was never real | a later drop, if real link creation is ever built |
@@ -309,8 +309,8 @@ the running app. A SKIP it prints is not a pass.
 | 09 | Operations Center | 02, 03, 04 | concurrency; queue is currently `MaxConcurrentOperations = 1` | `LINUX` | WinUI build + a Windows run; native-backend concurrency (L33) remains unverified by design |
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
 | 11 | Performance and Scale | 05, 07 | must measure, not guess | `LINUX` | WinUI build + a Windows run; R17/R18 (native 7Z backend, solid-archive scaling) still need `scripts\benchmark.ps1` on real Windows hardware; UI responsiveness/startup-to-interactive unverified from this session (L38); nothing measured above 20,000 entries |
-| 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `LINUX` | WinUI build + a Windows run; real process-kill harness closed by the DROP 13 follow-up (L40); `ExtractionWriter`'s per-entry temps still have no orphan sweep, deliberately deferred (L39); WinUI startup never calls `SweepOrphans()` (CLI's does, as of this drop) |
-| 13 | Release Security Audit | 06, 12 | hostile review of everything | `LINUX` | WinUI build + a Windows run with real `7z.dll`; `L41` (native 7z password string), `L42` (`LinkPolicy.WhenInsideDestination` inert), `L44` (shell-adapter `QuoteArgument`/`ShellCommandLine` gaps) all need a Windows session to verify or are on the forbidden-files list; `L38` (UI responsiveness) and `L35`/`L37` (WinUI search/tree) remain from earlier drops; `L40` and `L45` closed by a same-session follow-up (see "DROP 13 follow-up" below) |
+| 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `LINUX` | WinUI build + a Windows run; real process-kill harness closed by the DROP 13 follow-up (L40); `ExtractionWriter`'s per-entry temp orphan sweep also closed by a DROP 13 follow-up (L39); WinUI startup never calls `SweepOrphans()` (CLI's does, as of this drop) |
+| 13 | Release Security Audit | 06, 12 | hostile review of everything | `LINUX` | WinUI build + a Windows run with real `7z.dll`; `L41` (native 7z password string), `L42` (`LinkPolicy.WhenInsideDestination` inert), `L44` (shell-adapter `QuoteArgument`/`ShellCommandLine` gaps) all need a Windows session to verify or are on the forbidden-files list; `L38` (UI responsiveness) and `L35`/`L37` (WinUI search/tree) remain from earlier drops; `L39`, `L40` and `L45` closed by same-session follow-ups, one of which also fixed a real concurrency race found along the way (see "DROP 13 follow-up" below) |
 | 14 | Product Polish | 10 | must not redesign | `TODO` | — |
 | 15 | Release Candidate | all | evidence, not optimism | `TODO` | — |
 
@@ -1017,6 +1017,51 @@ completion-state assertions, and never touches `TryPause`/`TryResume` or progres
 **Evidence:** `941 / 6` (Linux unit + integration + architecture + CLI + parity + presentation),
 analyzer preflight PASS, `artifacts/test-20261019-065508/`.
 
+#### DROP 13 follow-up, part two — closing L39, and a real race found along the way
+
+The user explicitly authorised going past this row's own caution — L39 was deliberately left open
+in DROP 13 because `ExtractionWriter` is security-critical and this session cannot run a Windows
+verification pass — so it is closed here, on that explicit instruction, not on this session's own
+initiative.
+
+- **L39 — `ExtractionWriter`'s per-entry temp files now carry a PID and are swept the same way
+  `ArchivePublisher`'s staging file already is.** The temp name changed from `.noba-{guid}.tmp` to
+  `.noba-{pid}-{guid}.tmp`, and the first time a destination directory is touched, any same-shaped
+  sibling owned by a dead process is swept before this entry's own temp file opens — once per
+  directory rather than once per entry, so an archive with thousands of entries in one folder does
+  not pay a directory listing on every single one. Nothing about the TOCTOU handle re-verification
+  or the path policy changed; the sweep runs strictly before a temp file is opened, so it is not
+  something a crafted entry can race. Proven two ways, the same mechanism-plus-reality pattern L40
+  established: `PhysicalFileSystemTests`/`ExtractionOrphanSweepTests` prove the sweep mechanism
+  directly, and a new real-kill fact in `RealProcessCrashTests.cs` extracts from a real archive,
+  kills `noba-ar` mid-write with a real SIGKILL, and proves a second real extraction into the same
+  destination sweeps the real orphan and succeeds.
+- **A genuine, previously-dismissed concurrency bug, found and fixed.** Re-running the full
+  Integration suite to confirm the earlier `OperationLifecycleTests` flake was really unrelated to
+  this session's `OperationQueue.cs` changes (per part one, above) reproduced it again on a later
+  run — `Two_real_creations_run_concurrently_without_cross_talk` failed with
+  `BackendFailure: Could not find file '...b.zip.noba-write-lock'`. Diagnostic output (added
+  temporarily, reverted after) traced it to `PhysicalFileSystem.EnumerateEntries`: the lazy
+  `FileInfo.Length` read inside its enumeration loop had no `try`/`catch` around it, so when one of
+  two concurrent `ArchivePublisher.BeginAsync` calls writing *different* archives into the *same*
+  directory swept that shared directory while the other deleted its own `.noba-write-lock` file,
+  the enumeration could throw a raw `FileNotFoundException` for an entry it never needed to report —
+  aborting the whole sweep over one file that was never this call's to look at in the first place.
+  DROP 12 had hit this same symptom once and, without this reproduction, dismissed it as unrelated
+  hardware timing; it was not. Fixed by catching `IOException`/`UnauthorizedAccessException` around
+  each entry's property read and skipping that entry, the same "gone is not an error" treatment
+  every caller of this method already gives a missing file everywhere else. Reproduced
+  deterministically (not by waiting for the race) in a new `PhysicalFileSystemTests.cs`: an
+  enumerator is pumped by hand, and the entry it has not yet reached is deleted in between steps —
+  confirmed to fail without the fix and pass with it, by building and running both ways.
+
+Re-verified end to end again: the full suite was rebuilt and the Integration suite alone rerun five
+consecutive times after the fix, clean every time (210/210 each run, `OperationLifecycleTests`
+included), then the full `scripts/test.sh` and the analyzer preflight both ran clean once more.
+
+**Evidence:** `947 / 6` (Linux unit + integration + architecture + CLI + parity + presentation),
+analyzer preflight PASS, `artifacts/test-20261019-073522/`.
+
 ### DROP 14 — Product Polish
 - **Scope:** every screen and state — spacing, typography, icons, hierarchy, buttons, keyboard, dark
   mode, both languages, path rendering, progress, operation states.
@@ -1058,6 +1103,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-10-18 | DROP 12 — Recovery and Failure Safety | `…-drop-12-recovery-and-failure-safety` | 922 / 6 | — | PASS | not run | `artifacts/test-20261019-002711/` |
 | 2026-10-19 | DROP 13 — Release Security Audit | `…-drop-13-release-security-audit` | 930 / 6 | — | PASS | not run | `artifacts/test-20261019-063213/` |
 | 2026-10-19 | DROP 13 follow-up — L40/L45 closure | `…-drop-13-followup-l40-l45` | 941 / 6 | — | PASS | not run | `artifacts/test-20261019-065508/` |
+| 2026-10-19 | DROP 13 follow-up — L39 closure + race fix | `…-drop-13-followup-l39-race-fix` | 947 / 6 | — | PASS | not run | `artifacts/test-20261019-073522/` |
 
 ---
 

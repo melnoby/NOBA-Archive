@@ -68,6 +68,19 @@ public sealed class PhysicalFileSystem : IFileSystem
         }
     }
 
+    /// <summary>
+    /// DROP 13 follow-up. <c>EnumerationOptions.IgnoreInaccessible</c> above only covers an entry the
+    /// OS already refused permission on at listing time; it says nothing about one that existed when
+    /// the directory was listed but is deleted by something else - a sibling operation cleaning up its
+    /// own file in this same directory, found concretely by two concurrent <c>ArchivePublisher</c>
+    /// sweeps racing each other's write-lock files - before this loop gets to read its length or
+    /// attributes. Those reads are lazy on <see cref="FileSystemInfo"/> and throw
+    /// <see cref="FileNotFoundException"/> for exactly that entry, uncaught, which used to abort the
+    /// whole enumeration over one file this call never needed to see in the first place. Every caller
+    /// of this method already treats "the file is not there" as the normal, sweepable, skippable case
+    /// for everything else it does; an entry that vanishes between being listed and being read is the
+    /// same case; a byte range it can never win.
+    /// </summary>
     public IEnumerable<FileSystemEntryInfo> EnumerateEntries(string directory, bool recursive, CancellationToken cancellationToken)
     {
         var options = new EnumerationOptions
@@ -92,14 +105,33 @@ public sealed class PhysicalFileSystem : IFileSystem
         foreach (var info in source)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var isDirectory = info is DirectoryInfo;
-            yield return new FileSystemEntryInfo(
-                info.FullName,
-                info.Name,
-                isDirectory,
-                isDirectory ? 0 : ((FileInfo)info).Length,
-                info.LastWriteTimeUtc,
-                info.Attributes);
+
+            FileSystemEntryInfo entry;
+            try
+            {
+                var isDirectory = info is DirectoryInfo;
+                entry = new FileSystemEntryInfo(
+                    info.FullName,
+                    info.Name,
+                    isDirectory,
+                    isDirectory ? 0 : ((FileInfo)info).Length,
+                    info.LastWriteTimeUtc,
+                    info.Attributes);
+            }
+            catch (IOException)
+            {
+                // Gone since the directory was listed. Not this call's business to report - the next
+                // listing, by whoever still cares, will simply not see it either.
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // The same race IgnoreInaccessible already excuses above, just discovered a moment
+                // later than the initial listing: an ACL changing out from under this entry too.
+                continue;
+            }
+
+            yield return entry;
         }
     }
 
