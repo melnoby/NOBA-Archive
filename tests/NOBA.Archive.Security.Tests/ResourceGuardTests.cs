@@ -32,6 +32,29 @@ public sealed class ResourceGuardTests
         Assert.False(verdict.IsTripped);
     }
 
+    /// <summary>
+    /// DROP 13: a solid 7z block attributes its whole packed size to the first entry and reports
+    /// zero for every sibling - a provider fact, not a hypothetical - so a reported zero paired with
+    /// a large expansion must trip, not sail through as "nothing to divide by".
+    /// </summary>
+    [Fact]
+    public void Trips_when_compressed_size_is_reported_as_zero_past_the_floor()
+    {
+        var verdict = Guard().ObserveEntry(ByteSize.Zero, ByteSize.FromGibibytes(4));
+
+        Assert.True(verdict.IsTripped);
+        Assert.Equal(GuardTrip.EntryExpansionRatio, verdict.Trip);
+    }
+
+    /// <summary>A genuinely empty entry (zero in, zero out) is still exactly what the floor is for.</summary>
+    [Fact]
+    public void Does_not_trip_on_a_zero_compressed_size_below_the_floor()
+    {
+        var verdict = Guard().ObserveEntry(ByteSize.Zero, ByteSize.FromBytes(12));
+
+        Assert.False(verdict.IsTripped);
+    }
+
     [Fact]
     public void Allows_a_legitimately_large_archive()
     {

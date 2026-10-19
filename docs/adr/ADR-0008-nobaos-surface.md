@@ -18,9 +18,11 @@ consumer is attack surface, not architecture.
 - The engine must never depend on WinUI, never write to the console, and never show a dialog; host
   interaction is expressed as `IPasswordProvider`, `IConflictPrompt`, `IProgress<>`.
 - `IAppDataPathProvider` becomes mandatory, which also unlocks portable mode later.
-- The CLI accepts a password only on stdin or from an ACL-checked file — never as a command-line
-  argument and never from an environment variable, since a same-user process can read both a process's
-  command line and its environment block.
+- The CLI accepts a password only on stdin or from a file — never as a command-line argument and
+  never from an environment variable, since a same-user process can read both a process's command
+  line and its environment block. **DROP 13 correction:** the file was never actually ACL-checked —
+  no such check exists anywhere in the codebase this ADR describes; the real, narrower guarantee is
+  just "not argv, not the environment." See `docs/NOBAOS_INTEGRATION.md`'s password row.
 - The engine set includes `NOBA.Archive.Windows`; without its Win32 primitives the embedded engine could
   not propagate Mark of the Web or perform the post-open handle re-check.
 - `Core`'s public types become a versioned compatibility contract with NobaOS.

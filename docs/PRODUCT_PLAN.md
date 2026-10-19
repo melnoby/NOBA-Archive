@@ -4,7 +4,7 @@
 > to a release candidate. One row per drop, one status per row, and a rule that a status only moves
 > on evidence. It is meant to be read at a glance and updated at the end of every drop.
 >
-> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-12-recovery-and-failure-safety`
+> **Owner:** m.a.elnoby · **Created:** 2026-08-26 · **Baseline drop:** `2026-08-26-drop-01-product-baseline` · **Current drop:** `2026-10-18-drop-13-release-security-audit`
 
 ---
 
@@ -248,6 +248,11 @@ rather than transcribed.
 | L38 | **UI responsiveness and startup-to-interactive are unmeasured.** DROP 11 measured CLI-surfaced operations (`create`/`list`/`search`/`extract`/`test`) and process memory on Linux; the WinUI desktop app (`NOBA.Archive.App`) cannot be built, started, or driven from this session, so first-paint latency, tree-population responsiveness on a large archive, and startup-to-interactive time have no measurement anywhere — only the non-UI engine work the CLI exercises is covered | a Windows UI run |
 | L39 | **`ExtractionWriter`'s per-entry temp files have no orphan sweep.** DROP 12 gave `ArchivePublisher`'s staging file a PID-stamped name and a sweep at `BeginAsync`, closing that half of "a killed process leaves a `.noba-*.tmp` behind forever." The per-entry temp file `ExtractionWriter.BeginEntryAsync` opens in each destination directory has the identical gap and was deliberately left alone this drop: that file is explicitly security-critical (ADR-0005, the 2025 archiver CVE mitigations, the TOCTOU handle re-verification) and this session judged editing it without a Windows run to verify the result was the wrong trade against a secondary cleanup concern | a later drop |
 | L40 | **No real process-kill test harness exists anywhere.** Every "crash recovery" test in this codebase, including DROP 12's new `ArchivePublisherTests`, proves the *mechanism* (a stale file stamped with a dead PID gets swept) by constructing that artifact directly, never by actually starting `noba-ar`, killing it mid-operation, and inspecting what is left. The design is sound and the simulated case is deterministic and real evidence, but an out-of-process kill harness would be a different, stronger kind of proof that nothing in this codebase has | a later drop |
+| L41 | **The native 7z interop materialises an un-wipeable plaintext password `string`.** `Password` exists specifically so a password never becomes a managed `string` (strings cannot be zeroed) — but `SevenZipArchiveProvider.Reveal` copies it into an un-pinned, never-zeroed `byte[]`, and `Interop/Callbacks.cs`/`Interop/UpdateCallback.cs` build a real `System.String` from it right before `Marshal.StringToBSTR`, the exact object the design exists to avoid. Found reading the interop code during DROP 13's audit; not changed, because exercising it needs a real `7z.dll`, which this Linux build machine does not have (same gap as `L34`), and marshalling code this memory-safety-sensitive is not something to edit without that proof | a Windows run with `7z.dll` present |
+| L42 | **`LinkPolicy.WhenInsideDestination` does not create a real link.** No `CreateSymbolicLink`/hardlink Win32 call exists anywhere in this codebase; a link entry that clears the inside-destination check is written as an ordinary file instead. Safer than the setting's name promises, not less safe — but the feature as named is not built. The CLI's `extract` always passed `LinkPolicy.Never` regardless of `--no-links` (`parsed.HasFlag("no-links") ? LinkPolicy.Never : LinkPolicy.Never` — both branches identical); fixed to say that plainly rather than imply a choice that was never real | a later drop, if real link creation is ever built |
+| L43 | **`ResourceGuard.CheckMemoryBudget`/`CheckNestedDepth` are unit-tested in isolation and wired to nothing.** No caller in `Application`, `Backends.SevenZip`, or `Formats` ever calls either one — the same "built, tested alone, never actually called" shape DROP 12 already found once in `ITempWorkspaceFactory.SweepOrphans()`. There is no real call site to wire them into yet: nothing surfaces a declared dictionary size as a pre-allocation decision, and no feature auto-opens a nested archive. `THREAT_MODEL.md` T3's table corrected to stop claiming these as live | a drop that builds the feature these would guard |
+| L44 | **Two shell-adapter gaps found, neither touched.** `NobaSubCommand.cpp`'s `QuoteArgument` — the one function that re-serialises a selected filename into a Win32 command line for the modern (unshipped) `IExplorerCommand` path — has zero test coverage anywhere; hand-tracing it found no live bug, but nothing in CI would notice if a future change reopened the injection class ADR-0006/SHELL-024 exist to close. `Core/Actions/ShellCommandLine.Parse` (forbidden file — standing rule, not touched) fails the *entire* App-hosted shell request (`Open with NOBA Archive`, `Extract to…`, `Create archive…`) when any argument after the verb starts with `-`, rather than rejecting just that one file; opening a file named e.g. `-report.zip` this way silently opens an empty window instead of the archive. Fails closed (never misreads the argument as a flag), so not a security defect, but a real, confusing functional gap | a Windows native-toolchain session, for the first; whoever next touches ADR-0006/`ShellCommandLine`, for the second |
+| L45 | **Architecture-test coverage has two unenforced gaps, no live violation found behind either.** `MemberLevelRuleTests`' sync-over-async and console-write rules run against `Core`/`Security`/`Application`/`Infrastructure`/`Formats`/`Engine`/`Cli` only — `Presentation`, `Windows`, `ShellBridge`, and `App` were checked by hand during DROP 13 and found clean, but nothing machine-enforces that staying true, and `ShellBridge` is specifically a case where a blocking call would hang Explorer's own context menu, not just this process. `DependencyDirectionTests` asserts `ShellBridge` may reference everything but never asserts the other half of its own documented rule — that nothing may reference `ShellBridge` back — true today by inspection, not by test | a later drop |
 
 ---
 
@@ -305,7 +310,7 @@ the running app. A SKIP it prints is not a pass.
 | 10 | Windows UX | 02, 04, 07, 09 | scope creep | `TODO` | — |
 | 11 | Performance and Scale | 05, 07 | must measure, not guess | `LINUX` | WinUI build + a Windows run; R17/R18 (native 7Z backend, solid-archive scaling) still need `scripts\benchmark.ps1` on real Windows hardware; UI responsiveness/startup-to-interactive unverified from this session (L38); nothing measured above 20,000 entries |
 | 12 | Recovery and Failure Safety | 03, 04, 06 | fault injection needs a seam | `LINUX` | WinUI build + a Windows run; no real process-kill harness (L40); `ExtractionWriter`'s per-entry temps still have no orphan sweep, deliberately deferred (L39); WinUI startup never calls `SweepOrphans()` (CLI's does, as of this drop) |
-| 13 | Release Security Audit | 06, 12 | hostile review of everything | `TODO` | — |
+| 13 | Release Security Audit | 06, 12 | hostile review of everything | `LINUX` | WinUI build + a Windows run with real `7z.dll`; `L41` (native 7z password string), `L42` (`LinkPolicy.WhenInsideDestination` inert), `L44` (shell-adapter `QuoteArgument`/`ShellCommandLine` gaps) all need a Windows session to verify or are on the forbidden-files list; `L38` (UI responsiveness) and `L35`/`L37` (WinUI search/tree) remain from earlier drops |
 | 14 | Product Polish | 10 | must not redesign | `TODO` | — |
 | 15 | Release Candidate | all | evidence, not optimism | `TODO` | — |
 
@@ -902,6 +907,81 @@ their own research this engagement. Confirmed directly rather than assumed:
 - **Exit:** every real defect fixed; every unverified assumption documented as unverified. No
   manufactured results.
 
+#### What this drop built
+
+A hostile re-review of three surfaces — the operation queue/cancellation/pause machinery, the
+security surface DROP 06 and DROP 12 already closed, and shell integration/architectural boundaries —
+each read end to end against the real code before trusting a single claim, including claims this
+document itself had made. Every finding below was independently re-verified by reading the cited
+code paths directly; nothing here is reported on the strength of a search alone.
+
+**Fixed, with new tests:**
+
+- **`OperationQueue.TryPause`/`TryResume` could desync the pause gate from the reported state.** The
+  state-machine transition and the `PauseToken` call were two separate critical sections; an
+  overlapping `TryPause`/`TryResume` pair on the same id could interleave so the operation reports
+  `Running` while the gate stays closed, with no cancellation involved to rescue it. Both now happen
+  under one lock.
+- **A concurrently-enqueued operation could slip past `DisposeAsync`'s shutdown sweep.** `Enqueue`'s
+  disposed-check and `DisposeAsync`'s flag-flip-then-snapshot used to be two independent moments
+  racing a weakly-consistent `ConcurrentDictionary` enumeration; an entry inserted in the gap would
+  never be awaited or cancelled by shutdown and would instead race the semaphore and shutdown token
+  being disposed out from under it. Both now share one lock, so an enqueue and a dispose are always
+  strictly before or strictly after one another.
+- **Progress reports had no ordering guarantee and could regress `OperationSnapshot`'s progress
+  field.** `Progress<T>` built inside a `Task.Run` runner has no captured `SynchronizationContext`, so
+  each `Report()` posts independently to the thread pool with no guarantee later work items don't run
+  first. A new `SequencedProgress` assigns the sequence number on the reporting thread, in call order,
+  before posting, so a stale report can never overwrite a newer one in `entry.LastProgress` (now also
+  written under the entry's own lock, closing an unsynchronised read/write pair the old code had).
+  Subscriber-visible event ordering is unchanged and can still reorder under contention — a full fix
+  needs a dedicated serialising dispatch queue, tracked as a documented limitation rather than built
+  under this drop.
+- **The per-entry bomb-ratio guard was provably dead for most entries of a normal solid 7z archive.**
+  `ResourceGuard.ObserveEntry` treated a reported compressed size of zero as automatically safe. A
+  solid 7z block attributes its whole packed size to the first entry and reports zero for every
+  sibling — a provider fact, not a crafted edge case — so a crafted archive could put the real packed
+  size on an innocuous first entry while every later entry in the block individually expanded to
+  gigabytes, and the one guard THREAT_MODEL.md T3 names for exactly this never fired. A zero
+  compressed size at or past the ratio floor now trips the same way an extreme ratio would.
+- **A shell double-click (or two near-simultaneous CLI invocations) could race the same destination
+  archive.** The CLI runs one process per invocation and builds no `IOperationQueue`
+  (ARCHITECTURE.md §8.4); `ArchivePublisher.BeginAsync` did a plain check-then-act against the
+  destination, so two overlapping `Create`/`Manage` calls could both pass the existence check, both
+  do the full compression independently, and only collide at the final `MoveFile` — after however
+  long the work took, with a raw filesystem exception instead of a clean refusal. `BeginAsync` now
+  claims a sibling `.noba-write-lock` file (PID-stamped and swept the same way DROP 12's staging-file
+  orphan sweep works) for the life of the publication; a second writer is refused up front with a
+  clean `AccessDenied` error, released as soon as `PublishAsync` lands the rename rather than waiting
+  for disposal.
+- **The CLI's own argument parser could misparse a legitimate shell-selected filename.** Any token
+  starting with `-` was treated as an option regardless of position — a file named `-backup.zip`
+  (right-click "Test archive" on it) was silently absorbed as an unrecognised bare flag, leaving
+  `Positional` empty, and a filename colliding with a real value-option's name (e.g.
+  `-password-file`) could silently consume the *next* selected path as that option's value, dropping
+  it from the operation with no error at all. An unrecognised `-`-leading token now falls through to
+  positional instead of being swallowed, and a `--` end-of-options terminator was added for a caller
+  that cannot risk the collision at all (the value-option-collision behaviour itself is unchanged by
+  design — that is what `--` is for).
+- **A dead ternary made `extract --no-links` a no-op in both directions**, and `THREAT_MODEL.md`
+  claimed `--password-file` was ACL-checked when no ACL check exists anywhere in the codebase. Both
+  corrected to say what the code actually does.
+
+**Found, documented, not fixed** (`L41`–`L45` in §2; see `THREAT_MODEL.md` for the full correction
+text against T2/T3/T4): the native 7z interop builds a real, un-wipeable plaintext password `string`
+right before marshalling it (`L41`) — unverifiable without a Windows session and a real `7z.dll`;
+`LinkPolicy.WhenInsideDestination` does not create an actual link anywhere in this codebase, only lets
+a qualifying entry through to be written as a plain file (`L42`); `ResourceGuard.CheckMemoryBudget`/
+`CheckNestedDepth` are unit-tested in isolation and wired to nothing, because no feature in this
+product surfaces a declared memory need or auto-opens a nested archive yet (`L43`); the native
+shell adapter's `QuoteArgument` has zero test coverage and `Core/Actions/ShellCommandLine.Parse`
+(forbidden file, not touched) fails an entire shell request rather than just the one bad argument
+(`L44`); and `MemberLevelRuleTests`/`DependencyDirectionTests` leave two architecture invariants
+unenforced by machine, verified clean by hand but not guarded against regressing (`L45`).
+
+**Evidence:** `930 / 6` (Linux unit + integration + architecture + CLI + parity + presentation),
+analyzer preflight PASS, `artifacts/test-20261019-063213/`.
+
 ### DROP 14 — Product Polish
 - **Scope:** every screen and state — spacing, typography, icons, hierarchy, buttons, keyboard, dark
   mode, both languages, path rendering, progress, operation states.
@@ -941,6 +1021,7 @@ Append one row per drop. Windows totals come from `validate.ps1`; leave the cell
 | 2026-10-18 | DROP 11 — Performance and Scale | `…-drop-11-performance-and-scale` | 908 / 6 | — | PASS | not run | `artifacts/test-20261018-232238/` |
 | 2026-10-18 | DROP 03 — Archive Management (CLI surface + doc reconciliation) | `…-drop-03-archive-management-cli` | 915 / 6 | — | PASS | not run | `artifacts/test-20261018-235106/` |
 | 2026-10-18 | DROP 12 — Recovery and Failure Safety | `…-drop-12-recovery-and-failure-safety` | 922 / 6 | — | PASS | not run | `artifacts/test-20261019-002711/` |
+| 2026-10-19 | DROP 13 — Release Security Audit | `…-drop-13-release-security-audit` | 930 / 6 | — | PASS | not run | `artifacts/test-20261019-063213/` |
 
 ---
 

@@ -51,6 +51,19 @@ public sealed class OperationQueue : IOperationQueue
     private readonly Lock _admissionGate = new();
     private Task _lastAdmission = Task.CompletedTask;
 
+    /// <summary>
+    /// Makes "check <see cref="_disposed"/>, then add to <see cref="_entries"/>" (<see cref="Enqueue"/>)
+    /// and "flip <see cref="_disposed"/>, then read <see cref="_entries"/>" (<see cref="DisposeAsync"/>)
+    /// one critical section each, shared between the two. DROP 13: without it, an entry could be
+    /// inserted after <c>DisposeAsync</c>'s enumeration over <see cref="_entries"/> had already started
+    /// (<c>ConcurrentDictionary</c> enumeration is weakly consistent — it can miss a concurrent add),
+    /// so that entry's runner would never be awaited or cancelled by shutdown and would instead race
+    /// its own <c>_slots.WaitAsync</c> against <c>DisposeAsync</c> disposing <c>_slots</c> out from
+    /// under it. With this lock, an enqueue and a dispose are always strictly before or strictly after
+    /// one another — never interleaved.
+    /// </summary>
+    private readonly Lock _lifecycleGate = new();
+
     public OperationQueue(
         OperationIdFactory ids,
         IClock clock,
@@ -80,14 +93,19 @@ public sealed class OperationQueue : IOperationQueue
     public OperationId Enqueue(OperationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
         var id = _ids.Next(request.Type);
         var entry = new Entry(
             new ArchiveOperation(id, request.Type, request.Description),
             request.Destination,
             request.SupportsPause);
-        _entries[id.Value] = entry;
+
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            _entries[id.Value] = entry;
+        }
+
         Raise(entry);
 
         // The predecessor is captured here, on the caller's thread, in call order — which is the only
@@ -120,15 +138,23 @@ public sealed class OperationQueue : IOperationQueue
             return false;
         }
 
+        // DROP 13: the state-machine transition and the gate call used to be two separate critical
+        // sections, so an overlapping TryPause/TryResume pair on the same id could interleave as
+        // Pause-applies, Resume-applies, Resume-gate, Pause-gate - leaving State == Running with the
+        // gate closed, and the worker parked in WaitWhilePaused(Async) forever with no cancellation
+        // involved to rescue it (PTK-004 only protects the cancel-vs-pause case, not this one). Both
+        // now happen under the same lock, so the trigger and the gate it drives can never land in two
+        // different orders for two overlapping callers.
         lock (entry.Gate)
         {
             if (!entry.Operation.TryApply(OperationTrigger.Pause, _clock.UtcNow))
             {
                 return false;
             }
+
+            entry.Pause.Pause();
         }
 
-        entry.Pause.Pause();
         Raise(entry);
         return true;
     }
@@ -140,15 +166,18 @@ public sealed class OperationQueue : IOperationQueue
             return false;
         }
 
+        // See the matching note in TryPause: the trigger and the gate call are one critical section,
+        // not two, so this can never land "between" an overlapping TryPause's own two steps.
         lock (entry.Gate)
         {
             if (!entry.Operation.TryApply(OperationTrigger.Resume, _clock.UtcNow))
             {
                 return false;
             }
+
+            entry.Pause.Resume();
         }
 
-        entry.Pause.Resume();
         Raise(entry);
         return true;
     }
@@ -301,11 +330,17 @@ public sealed class OperationQueue : IOperationQueue
                 return;
             }
 
-            var progress = new Progress<OperationProgress>(p =>
-            {
-                entry.LastProgress = p;
-                ProgressReported?.Invoke(this, p);
-            });
+            // DROP 13: `Progress<T>` built inside a `Task.Run` runner has no captured
+            // `SynchronizationContext`, so each `Report()` posts independently to the thread pool
+            // with no ordering guarantee between them - under contention a later report's work item
+            // can run before an earlier one's. `SequencedProgress` assigns the sequence number on the
+            // producer's own thread, in call order, before posting, so a late-arriving stale report
+            // can be told apart from a genuinely newer one and never regresses `entry.LastProgress`
+            // (the field `ToSnapshot` actually reads). Every report still reaches `ProgressReported`
+            // in whatever order its work item happens to run — fully serialising that too would need
+            // a dedicated single-consumer dispatch queue, which is tracked as a documented limitation
+            // rather than built here under this drop's time budget.
+            var progress = new SequencedProgress(entry, p => ProgressReported?.Invoke(this, p));
 
             var context = new OperationContext(entry.Operation.Id, entry.Operation.Type, progress, entry.Pause);
             await request.Work(context, linked.Token).ConfigureAwait(false);
@@ -360,9 +395,17 @@ public sealed class OperationQueue : IOperationQueue
             return;
         }
 
+        // Taken under the same lock Enqueue uses for its own disposed-check-and-insert, so this
+        // snapshot either includes or strictly postdates every entry that will ever get a runner.
+        Entry[] snapshot;
+        lock (_lifecycleGate)
+        {
+            snapshot = [.. _entries.Values];
+        }
+
         await _shutdown.CancelAsync().ConfigureAwait(false);
 
-        foreach (var entry in _entries.Values)
+        foreach (var entry in snapshot)
         {
             entry.Pause.Resume();
             if (entry.Runner is { } runner)
@@ -414,6 +457,14 @@ public sealed class OperationQueue : IOperationQueue
 
         public OperationProgress? LastProgress { get; set; }
 
+        /// <summary>The sequence number of whichever report last won <see cref="LastProgress"/>.</summary>
+        public long LastAppliedProgressSequence { get; set; }
+
+        private long _progressSequence;
+
+        /// <summary>Hands out sequence numbers in call order; see <see cref="SequencedProgress"/>.</summary>
+        public long NextProgressSequence() => Interlocked.Increment(ref _progressSequence);
+
         public OperationSnapshot ToSnapshot()
         {
             lock (Gate)
@@ -436,6 +487,51 @@ public sealed class OperationQueue : IOperationQueue
         {
             Pause.Dispose();
             Cancellation.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Posts each report to the thread pool the same way a context-less <see cref="Progress{T}"/>
+    /// already does (so this changes ordering guarantees, not threading behaviour), but captures a
+    /// sequence number on the reporting thread, in call order, before posting - the one place call
+    /// order is still known once the report crosses to a pool thread that offers none.
+    /// </summary>
+    private sealed class SequencedProgress : IProgress<OperationProgress>
+    {
+        private readonly Entry _entry;
+        private readonly Action<OperationProgress> _onReported;
+
+        public SequencedProgress(Entry entry, Action<OperationProgress> onReported)
+        {
+            _entry = entry;
+            _onReported = onReported;
+        }
+
+        public void Report(OperationProgress value)
+        {
+            var sequence = _entry.NextProgressSequence();
+            ThreadPool.QueueUserWorkItem(
+                static state => state.Self.Apply(state.Sequence, state.Value),
+                (Self: this, Sequence: sequence, Value: value),
+                preferLocal: false);
+        }
+
+        private void Apply(long sequence, OperationProgress value)
+        {
+            // A later-numbered report that lands first already told `LastProgress` the truth; a
+            // stale one arriving after must not be allowed to tell it a smaller one instead. The
+            // report still reaches every subscriber below regardless - only the snapshot field's
+            // monotonicity is guarded here (see the DROP 13 remark where this is constructed).
+            lock (_entry.Gate)
+            {
+                if (sequence > _entry.LastAppliedProgressSequence)
+                {
+                    _entry.LastAppliedProgressSequence = sequence;
+                    _entry.LastProgress = value;
+                }
+            }
+
+            _onReported(value);
         }
     }
 }

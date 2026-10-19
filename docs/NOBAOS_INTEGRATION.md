@@ -112,7 +112,7 @@ Contract rules that make it safe to script:
 
 | Rule | Detail |
 |---|---|
-| Passwords | **only** via `--password-stdin`, or `--password-file <path>` when the file's ACL grants the current user alone. Never a command-line argument, and **never an environment variable** — on Windows another process running as the same user can read both a process's command line and its environment block, and the environment is additionally inherited by every child process. |
+| Passwords | **only** via `--password-stdin`, or `--password-file <path>`, read as-is — nothing in this codebase checks that file's permissions (**DROP 13 correction**: the file is not ACL-checked; setting its permissions narrowly is the caller's own responsibility). Never a command-line argument, and **never an environment variable** — on Windows another process running as the same user can read both a process's command line and its environment block, and the environment is additionally inherited by every child process. |
 | Machine output | `--json` emits one JSON document on stdout; human text goes to stderr, so pipes stay clean |
 | Progress | `--json` streams newline-delimited progress objects to **stderr** when a TTY is absent |
 | Exit codes | stable and documented: `0` success · `1` usage error · `2` archive not found · `3` unsupported operation/format · `4` password required or wrong · `5` corrupt archive · `6` blocked by security policy · `7` insufficient disk space · `8` cancelled · `9` I/O failure · `10` backend failure |

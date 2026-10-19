@@ -215,6 +215,59 @@ public sealed class CliContractTests
         Assert.NotNull(parsed);
         Assert.Equal("rename", parsed.Option("conflict"));
     }
+
+    /// <summary>
+    /// DROP 13: a shell-selected file literally named "-backup.zip" (right-click "Test archive" on
+    /// it) used to be swallowed as an unrecognised bare flag named "backup.zip" - Positional stayed
+    /// empty and the archive could never be named at all. It must now be parsed as the path it is.
+    /// </summary>
+    [Fact]
+    public void A_dash_leading_filename_that_is_not_a_known_option_is_positional()
+    {
+        Assert.True(CommandLineParser.TryParse(["test", "-backup.zip"], out var parsed, out _));
+
+        Assert.NotNull(parsed);
+        Assert.True(parsed.Positional.Contains("-backup.zip"));
+        Assert.False(parsed.HasFlag("backup.zip"));
+    }
+
+    /// <summary>
+    /// The more dangerous shape of the same bug: a selected file's name happens to collide with a
+    /// real value-option's name ("-password-file"), so the *next* selected path was silently
+    /// consumed as that option's value and dropped from the operation with no error at all.
+    /// </summary>
+    [Fact]
+    public void A_filename_colliding_with_a_value_option_name_still_requires_an_explicit_value()
+    {
+        // Unchanged, deliberate behaviour: "-password-file" written as its own token by a caller
+        // that did not use "--" is still read as the option it names - that half of the contract
+        // is not what DROP 13 changed. "--" (below) is the fix for a caller that cannot risk it.
+        Assert.True(CommandLineParser.TryParse(
+            ["create", "out.zip", "-password-file", "real-file.txt"],
+            out var parsed,
+            out _));
+
+        Assert.NotNull(parsed);
+        Assert.Equal("real-file.txt", parsed.Option("password-file"));
+        Assert.False(parsed.Positional.Contains("real-file.txt"));
+    }
+
+    /// <summary>
+    /// "--" is the escape hatch: everything after it is positional no matter what it looks like,
+    /// which is what a caller building an argv out of untrusted shell-selected paths should use.
+    /// </summary>
+    [Fact]
+    public void A_double_dash_terminator_forces_everything_after_it_to_be_positional()
+    {
+        Assert.True(CommandLineParser.TryParse(
+            ["create", "out.zip", "--", "-password-file", "--json", "-o"],
+            out var parsed,
+            out _));
+
+        Assert.NotNull(parsed);
+        Assert.Equal(["out.zip", "-password-file", "--json", "-o"], parsed.Positional);
+        Assert.False(parsed.Json);
+    }
 }
 
 /// <summary>Exit codes are a versioned contract; every error must land on a defined one.</summary>

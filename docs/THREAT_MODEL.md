@@ -119,6 +119,16 @@ junction in the destination redirects our writes; (d) hardlink entries targeting
 
 **Tests:** `SEC-004`, `SEC-005`, `SEC-013`.
 
+**DROP 13 correction:** point 1's "create only if inside destination" setting
+(`LinkPolicy.WhenInsideDestination`) does not actually create a link anywhere in this codebase —
+no `CreateSymbolicLink`/hardlink Win32 call exists at all. A link entry that clears the
+inside-destination check is let through to be written as an ordinary file, same as point 5 already
+describes for hardlinks specifically. Safer than the setting's name implies, not less safe — but the
+setting currently promises a feature ("create only if...") this product does not build yet. The CLI's
+own `extract` always passes `LinkPolicy.Never` regardless of any flag (a dead `--no-links` ternary
+that could never have changed anything was fixed to say that plainly rather than pretend otherwise).
+Tracked as `L42`.
+
 ### T3 — Decompression bombs and resource exhaustion (A6) · *DoS*
 
 **Vectors:** 42.zip-style nesting, single-entry ratio bombs, millions of tiny entries, absurd declared
@@ -141,6 +151,32 @@ once, informed of the numbers, and can proceed. Counters are enforced **during**
 declared metadata, because declared sizes are attacker-controlled.
 **Tests:** `SEC-008`, `SEC-009`, `SEC-011`.
 
+**DROP 13 corrections, hostile re-review of this table against the real code:**
+
+- **"Pause and ask" never happens, for any row.** `ResourceGuard`'s trip is a hard, unconditional
+  throw (`GuardedWriteStream.Check`, `ExtractArchiveHandler.Trip`); nothing anywhere in
+  `Presentation`/`App`/`Cli` catches a `BombSuspected` error and re-offers with relaxed thresholds.
+  Every row above fails closed, not "ask once, informed of the numbers." Documented as the real
+  behaviour rather than built out this drop — a real resumable prompt belongs with the screen that
+  would show it, which this Linux session cannot build or verify (L38 and the WinUI gaps elsewhere
+  in this document already name the same limit).
+- **The per-entry ratio guard was provably dead for most entries of a normal solid 7z archive.**
+  `ResourceGuard.ObserveEntry` treated a reported `compressed` size of zero as automatically safe —
+  but a solid 7z block attributes its whole packed size to the first entry and reports zero for every
+  sibling (a provider fact, not a crafted edge case; the managed ZIP path can report the same zero
+  from an attacker-declared central-directory field). A crafted archive could put the real packed
+  size on an innocuous first entry while every later entry in the block individually expanded to
+  gigabytes, and the "expansion ratio per entry" row never fired for any of them. Fixed: a zero
+  compressed size at or past the ratio floor now trips the same way an extreme ratio would.
+- **"Declared dictionary/memory need > 25% RAM" and "nested-archive auto-open depth > 2" are not
+  wired to anything.** `ResourceGuard.CheckMemoryBudget`/`CheckNestedDepth` exist and are unit-tested
+  in isolation, but no caller in `Application`/`Backends.SevenZip`/`Formats` ever calls either one —
+  the same "built, tested alone, never actually called" shape this document's own T9 DROP 12
+  correction already found once in `ITempWorkspaceFactory.SweepOrphans()`. Nothing this product does
+  today surfaces a declared dictionary size as a pre-allocation decision or auto-opens a nested
+  archive at all, so there is no real call site to wire these into without inventing one; left as a
+  documented gap rather than built against a feature that does not exist. Tracked as `L43`.
+
 ### T4 — Password and key exposure (A2) · *Information disclosure*
 
 **Mitigations:**
@@ -159,6 +195,17 @@ declared metadata, because declared sizes are attacker-controlled.
   strength is bounded by the password.
 
 **Tests:** `SEC-014` (redaction), `SEC-015` (no persistence), `SEC-016` (zeroing).
+
+**DROP 13 — TB5 finding, documented, not fixed.** `Password` is designed to never produce a managed
+`string` precisely because a string cannot be wiped (`SevenZipArchiveProvider.Reveal`'s own comment
+says so). The native 7z path does it anyway: `Reveal` materialises an un-pinned, never-zeroed
+plaintext `byte[]` via `bytes.ToArray()`, and `Interop/Callbacks.cs`/`Interop/UpdateCallback.cs`
+construct a real, immutable `System.String` from it immediately before `Marshal.StringToBSTR` — the
+exact object type the design exists to avoid, sitting on the managed heap for an indeterminate GC
+lifetime. This is TB5 itself. It is reported rather than fixed this drop: exercising it needs a real
+`7z.dll`, which this Linux build machine does not have (the same gap `L34` already names for 7z/RAR
+fuzzing), so a change here could not be verified by anything stronger than reading the interop code —
+not a safe trade for memory-safety-sensitive marshalling. Tracked as `L41`.
 
 ### T5 — Malicious / malformed metadata (A4, A5) · *Tampering, DoS*
 

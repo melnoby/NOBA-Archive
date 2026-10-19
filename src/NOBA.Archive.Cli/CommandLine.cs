@@ -42,6 +42,24 @@ public static class CommandLineParser
         "remove", "rename",
     };
 
+    /// <summary>
+    /// Boolean options recognised with no following value. DROP 13: this registry did not exist -
+    /// any "-"-leading token that was not a value-option fell through to <c>options[name] = null</c>
+    /// unconditionally, so a shell-selected file literally named e.g. "-backup.zip" was silently
+    /// parsed as an unknown bare flag named "backup.zip" rather than a path: <c>Positional</c> stayed
+    /// empty (a legitimate archive could never be named), and worse, for a verb expecting several
+    /// paths, the *next* real positional argument would be swallowed as that unknown flag's would-be
+    /// value in some call shapes - a selected file silently dropped from the operation with no error
+    /// at all. Keeping an explicit allow-list means an unrecognised "-"-leading token now falls
+    /// through to <see cref="TryParse"/>'s positional branch instead, the same way any other filename
+    /// does.
+    /// </summary>
+    private static readonly HashSet<string> KnownFlags = new(StringComparer.Ordinal)
+    {
+        "json", "help", "h", "?", "version",
+        "desc", "no-links", "solid", "encrypt", "encrypt-names", "overwrite", "password-stdin",
+    };
+
     public static bool TryParse(
         IReadOnlyList<string> args,
         [NotNullWhen(true)] out ParsedCommandLine? parsed,
@@ -55,6 +73,7 @@ public static class CommandLineParser
         var positional = new List<string>();
         var options = new Dictionary<string, string?>(StringComparer.Ordinal);
         string? verb = null;
+        var endOfOptions = false;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -64,7 +83,18 @@ public static class CommandLineParser
                 continue;
             }
 
-            if (arg[0] == '-')
+            // The conventional escape hatch: everything after a bare "--" is positional, dash-leading
+            // or not. A caller that builds an argv from untrusted paths (the shell resolver included -
+            // CliApplication.RunAsync parses the raw argv once, before any verb-specific dispatch, so
+            // this covers every verb) can use it to guarantee a path is never misread as an option,
+            // without this parser having to guess from shape alone.
+            if (!endOfOptions && arg == "--")
+            {
+                endOfOptions = true;
+                continue;
+            }
+
+            if (!endOfOptions && arg[0] == '-')
             {
                 var name = arg.TrimStart('-');
                 if (name.Length == 0)
@@ -74,13 +104,16 @@ public static class CommandLineParser
                 }
 
                 var eq = name.IndexOf('=', StringComparison.Ordinal);
-                if (eq > 0)
+                var optionName = eq > 0 ? name[..eq] : name;
+                var isKnown = ValueOptions.Contains(optionName) || KnownFlags.Contains(optionName);
+
+                if (eq > 0 && isKnown)
                 {
-                    options[name[..eq]] = name[(eq + 1)..];
+                    options[optionName] = name[(eq + 1)..];
                     continue;
                 }
 
-                if (ValueOptions.Contains(name))
+                if (eq < 0 && ValueOptions.Contains(name))
                 {
                     if (i + 1 >= args.Count)
                     {
@@ -92,8 +125,14 @@ public static class CommandLineParser
                     continue;
                 }
 
-                options[name] = null;
-                continue;
+                if (eq < 0 && KnownFlags.Contains(name))
+                {
+                    options[name] = null;
+                    continue;
+                }
+
+                // Not a recognised option at all - fall through and treat the literal token, dash
+                // included, as positional. See the DROP 13 remark on KnownFlags above.
             }
 
             if (verb is null)

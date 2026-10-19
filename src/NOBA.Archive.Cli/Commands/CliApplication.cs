@@ -827,7 +827,14 @@ public sealed class CliApplication
         {
             DestinationRoot = Path.GetFullPath(destination),
             ConflictPolicy = conflictPolicy,
-            LinkPolicy = parsed.HasFlag("no-links") ? LinkPolicy.Never : LinkPolicy.Never,
+            // DROP 13: both branches of this used to be LinkPolicy.Never - "--no-links" parsed fine
+            // but could never have changed anything, present or absent. Left genuinely fixed at
+            // Never rather than wired to something: ExtractionWriter's WhenInsideDestination does
+            // not create a real link either (no CreateSymbolicLink/hardlink call exists anywhere in
+            // this codebase - it just lets a qualifying link entry's content through to be written
+            // as an ordinary file), so exposing it as "allow links" from the CLI would promise a
+            // feature that is not actually built yet. Tracked as L42.
+            LinkPolicy = LinkPolicy.Never,
             SelectedEntries = selected.Count > 0 ? selected : null,
         };
 
@@ -1178,9 +1185,21 @@ public sealed class CliApplication
     }
 
     /// <summary>
-    /// Reads a password from stdin or an ACL-checked file. Never from an argument or an environment
-    /// variable: on Windows a same-user process can read both a command line and an environment block.
+    /// Reads a password from stdin or a file. Never from an argument or an environment variable: on
+    /// Windows a same-user process can read both a command line and an environment block.
     /// </summary>
+    /// <remarks>
+    /// <b>DROP 13 correction:</b> this used to call <c>--password-file</c>'s file "ACL-checked". No
+    /// ACL check exists anywhere in this codebase - <see cref="File.ReadAllText(string)"/> below reads
+    /// whatever is at the path, permissions included, same as any other file read in this project. A
+    /// world-readable password file on a shared machine is exactly as readable by another local
+    /// account as the claim implied it was not. Checked rather than assumed: a repo-wide search for
+    /// <c>AccessControl</c>/<c>FileSecurity</c>/<c>GetAccessControl</c> finds nothing. Documented as
+    /// the real, narrower guarantee - the password never appears on the command line or in an
+    /// environment variable - rather than built out under this drop: a real Windows ACL check would
+    /// need to run on Windows to mean anything, which this Linux session cannot do (same shape as
+    /// L34's native-backend gap).
+    /// </remarks>
     private Password? ReadPassword(ParsedCommandLine parsed)
     {
         if (parsed.HasFlag("password-stdin"))
@@ -1309,9 +1328,10 @@ public sealed class CliApplication
         io.WriteLine("  --modified-after / --modified-before <ISO-8601>");
         io.WriteLine("  --sort path|name|size|compressed-size|modified|ratio");
         io.WriteLine("  --desc                             Reverse the sort (ties still break by path)");
-        io.WriteLine("Passwords are read from stdin (--password-stdin) or an ACL-checked file");
-        io.WriteLine("(--password-file). They are never accepted as a command-line argument or an");
-        io.WriteLine("environment variable: on Windows another process running as the same user can");
+        io.WriteLine("Passwords are read from stdin (--password-stdin) or a file (--password-file);");
+        io.WriteLine("the file's own permissions are yours to set, nothing here checks them. They are");
+        io.WriteLine("never accepted as a command-line argument or an environment variable: on Windows");
+        io.WriteLine("another process running as the same user can");
         io.WriteLine("read both a process's command line and its environment block.");
         io.WriteLine(string.Empty);
         io.WriteLine("Exit codes: 0 success, 1 usage, 2 archive not found, 3 unsupported operation,");

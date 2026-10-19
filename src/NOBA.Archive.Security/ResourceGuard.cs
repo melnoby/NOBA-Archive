@@ -28,9 +28,32 @@ public sealed class ResourceGuard : IResourceGuard
 
     public GuardVerdict ObserveEntry(ByteSize compressed, ByteSize expanded)
     {
-        if (expanded < _options.RatioFloor || compressed.IsZero)
+        if (expanded < _options.RatioFloor)
         {
             return GuardVerdict.Ok;
+        }
+
+        if (compressed.IsZero)
+        {
+            // DROP 13: a zero here used to mean "treat as safe", on the assumption that nothing
+            // this cheap to store could be a bomb. That is true for a genuinely empty entry, which
+            // the floor check above already lets through with expanded size zero too - but a
+            // provider can report zero for an entry that is NOT empty: a solid 7z block attributes
+            // the whole block's packed size to its first entry and reports zero for every sibling
+            // (SevenZipArchiveProvider.cs / InArchive.cs), and a crafted archive can put the real
+            // packed size on an innocuous first entry while every later entry in the same block
+            // individually expands to gigabytes. None of them ever reached a ratio check at all
+            // under the old "zero is safe" rule - this was the one entry-ratio guard THREAT_MODEL.md
+            // T3 names, provably never firing for most entries of a normal solid archive. A reported
+            // zero paired with an expansion at or past the floor is now treated as unmeasurable, not
+            // safe, and trips the same way an extreme ratio would.
+            return new GuardVerdict(
+                GuardTrip.EntryExpansionRatio,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"This entry expands to {expanded} from a reported compressed size of zero."),
+                double.PositiveInfinity,
+                _options.MaxEntryExpansionRatio);
         }
 
         var ratio = (double)expanded.Bytes / compressed.Bytes;
